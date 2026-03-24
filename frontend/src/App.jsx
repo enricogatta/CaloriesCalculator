@@ -3,22 +3,20 @@ import React, { useState, useEffect } from 'react';
 const App = () => {
   const [meal, setMeal] = useState('');
   const [grams, setGrams] = useState('');
-  const [category, setCategory] = useState('Pranzo');
+  const [category, setCategory] = useState('Colazione');
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const mealInputRef = React.useRef(null);
 
-  // Caricamento dati iniziali
   useEffect(() => {
     const savedLogs = localStorage.getItem('dailyMeals');
     if (savedLogs) setLogs(JSON.parse(savedLogs));
   }, []);
 
-  // Salvataggio automatico
   useEffect(() => {
     localStorage.setItem('dailyMeals', JSON.stringify(logs));
   }, [logs]);
 
-  // CALCOLO TOTALI
   const totals = logs.reduce((acc, curr) => ({
     calories: acc.calories + (Number(curr.calories) || 0),
     protein: acc.protein + (Number(curr.protein) || 0),
@@ -56,6 +54,10 @@ const App = () => {
       setLogs([newEntry, ...logs]);
       setMeal('');
       setGrams('');
+      // Mantieni la categoria e focalizza su meal input per aggiungere rapidamente altri piatti
+      if (mealInputRef.current) {
+        mealInputRef.current.focus();
+      }
     } catch (error) {
       alert(`Errore: ${error.message}`);
     } finally {
@@ -67,93 +69,168 @@ const App = () => {
     if(window.confirm("Vuoi cancellare tutti i dati di oggi?")) setLogs([]);
   };
 
+  const handleAddAnotherDish = (entryCategory) => {
+    setCategory(entryCategory);
+    setMeal('');
+    setGrams('');
+    if (mealInputRef.current) {
+      mealInputRef.current.focus();
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-lib-dark p-4 md:p-8 font-sans text-primary">
-      <div className="max-w-3xl mx-auto">
-        
-        {/* HEADER & DASHBOARD */}
-        <header className="mb-8">
-          <h1 className="text-4xl font-black text-center mb-6 text-lib-primary">NutriTrack AI</h1>
+    <div className="min-h-screen bg-slate-950 relative overflow-hidden text-white">
+      {/* Animated background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-violet-600 rounded-full mix-blend-multiply opacity-10 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply opacity-10 blur-3xl"></div>
+      </div>
+
+      <div className="relative z-10 min-h-screen p-4 md:p-8 font-sans">
+        <div className="max-w-4xl mx-auto">
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Calorie Totali" value={totals.calories.toFixed(0)} unit="kcal" color="bg-orange-500" />
-            <StatCard label="Proteine" value={totals.protein.toFixed(1)} unit="g" color="bg-blue-500" />
-            <StatCard label="Carboidrati" value={totals.carbs.toFixed(1)} unit="g" color="bg-yellow-500" />
-            <StatCard label="Grassi" value={totals.fat.toFixed(1)} unit="g" color="bg-red-500" />
-          </div>
-        </header>
-
-        {/* INPUT FORM */}
-        <div className="bg-lib-card rounded-3xl shadow-sm border border-lib-border p-6 mb-8">
-          <h2 className="text-lg font-bold mb-4 text-primary">Cosa hai mangiato?</h2>
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-            <select 
-              className="md:col-span-3 p-3 rounded-xl bg-lib-secondary border-none focus:ring-2 focus:ring-lib-primary outline-none text-primary"
-              value={category} 
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              {['Colazione', 'Spuntino 1', 'Pranzo', 'Spuntino 2', 'Cena'].map(c => <option key={c}>{c}</option>)}
-            </select>
-            <input 
-              className="md:col-span-5 p-3 rounded-xl bg-lib-secondary border-none focus:ring-2 focus:ring-lib-primary outline-none text-primary"
-              type="text" placeholder="Es: Pasta al pesto" 
-              value={meal} onChange={(e) => setMeal(e.target.value)}
-            />
-            <input 
-              className="md:col-span-2 p-3 rounded-xl bg-lib-secondary border-none focus:ring-2 focus:ring-lib-primary outline-none text-primary"
-              type="number" placeholder="Grammi" 
-              value={grams} onChange={(e) => setGrams(e.target.value)}
-            />
-            <button
-              onClick={handleAddMeal}
-              disabled={loading}
-              className={`md:col-span-2 p-3 rounded-xl font-bold text-white shadow-lg shadow-lib-primary transition-all active:scale-95 ${loading ? 'bg-lib-secondary' : 'bg-lib-primary hover:opacity-80'}`}
-            >
-              {loading ? '...' : 'Aggiungi'}
-            </button>
-          </div>
-        </div>
-
-        {/* LISTA PASTI */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center px-2">
-            <h3 className="font-bold text-xl text-secondary">Pasti Recenti</h3>
-            <button onClick={clearLogs} className="text-sm text-tertiary hover:text-red-500 transition-colors">Svuota tutto</button>
-          </div>
-          
-          {logs.length === 0 && (
-            <p className="text-center py-10 text-tertiary italic">Ancora nessun pasto aggiunto. Inizia ora!</p>
-          )}
-
-          {logs.map((log) => (
-            <div key={log.id} className="bg-lib-card p-5 rounded-2xl flex justify-between items-center shadow-sm border border-lib-border hover:border-lib-primary transition-colors">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-lib-primary bg-lib-secondary px-2 py-1 rounded-full mb-2 inline-block">
-                  {log.category}
-                </span>
-                <h3 className="text-lg font-bold text-primary capitalize">{log.food} <span className="text-secondary font-normal text-sm">({log.grams}g)</span></h3>
-                <div className="flex gap-4 mt-1 text-sm font-medium text-tertiary">
-                  <span>🔥 {log.calories.toFixed(0)} <small>kcal</small></span>
-                  <span>🥩 {log.protein.toFixed(1)}g</span>
-                  <span>🍞 {log.carbs.toFixed(1)}g</span>
-                  <span>🥑 {log.fat.toFixed(1)}g</span>
-                </div>
-              </div>
+          {/* HEADER */}
+          <header className="mb-12 text-center">
+            <div className="inline-block mb-4">
+              <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600">NutriTrack</h1>
+              <p className="text-cyan-400 text-sm tracking-widest mt-1 font-semibold">Your Daily Nutrition Monitor</p>
             </div>
-          ))}
+          </header>
+
+          {/* DASHBOARD STATS */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
+            <StatCard label="Calorie" value={totals.calories.toFixed(0)} unit="kcal" icon="🔥" gradient="from-orange-500 to-red-600" />
+            <StatCard label="Proteine" value={totals.protein.toFixed(1)} unit="g" icon="🥩" gradient="from-blue-500 to-cyan-600" />
+            <StatCard label="Carboidrati" value={totals.carbs.toFixed(1)} unit="g" icon="🌾" gradient="from-yellow-400 to-orange-500" />
+            <StatCard label="Grassi" value={totals.fat.toFixed(1)} unit="g" icon="🥑" gradient="from-green-400 to-emerald-600" />
+          </div>
+
+          {/* INPUT FORM */}
+          <div className="bg-slate-900 rounded-3xl border border-violet-700 border-opacity-30 p-8 mb-10 backdrop-blur-sm hover:border-opacity-70 transition-all duration-300">
+            <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
+              <span className="text-3xl">📝</span> Aggiungi un pasto
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+              <select 
+                className="md:col-span-3 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all"
+                value={category} 
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                {['Colazione', 'Pranzo', 'Cena', 'Spuntino'].map(c => <option key={c} className="bg-slate-900">{c}</option>)}
+              </select>
+              <input 
+                ref={mealInputRef}
+                className="md:col-span-5 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500"
+                type="text" placeholder="Es: Pasta al pesto" 
+                value={meal} onChange={(e) => setMeal(e.target.value)}
+              />
+              <input 
+                className="md:col-span-2 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500"
+                type="number" placeholder="Grammi" 
+                value={grams} onChange={(e) => setGrams(e.target.value)}
+              />
+              <button
+                onClick={handleAddMeal}
+                disabled={loading}
+                className={`md:col-span-2 px-4 py-3 rounded-xl font-bold text-white transition-all active:scale-95 transform ${
+                  loading 
+                    ? 'bg-slate-700 opacity-50 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:shadow-lg hover:shadow-violet-500/50 hover:-translate-y-0.5'
+                }`}
+              >
+                {loading ? '⏳' : '✚ Aggiungi'}
+              </button>
+            </div>
+          </div>
+
+          {/* LISTA PASTI */}
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-bold text-2xl text-white flex items-center gap-2">
+                <span className="text-3xl">📋</span> Pasti Recenti
+              </h3>
+              {logs.length > 0 && (
+                <button 
+                  onClick={clearLogs} 
+                  className="text-sm text-gray-400 hover:text-pink-400 transition-colors font-semibold hover:underline"
+                >
+                  🗑️ Svuota
+                </button>
+              )}
+            </div>
+            
+            {logs.length === 0 && (
+              <div className="text-center py-16">
+                <p className="text-5xl mb-4">🍽️</p>
+                <p className="text-gray-400 text-lg">Ancora nessun pasto aggiunto. Inizia a monitorare ora!</p>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {logs.map((log) => (
+                <div 
+                  key={log.id} 
+                  className="bg-slate-900 border border-violet-700 border-opacity-30 p-6 rounded-2xl hover:border-opacity-70 transition-all duration-300 group hover:shadow-lg hover:shadow-violet-500/20 hover:-translate-y-0.5"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-xs font-bold uppercase tracking-wider text-violet-300 bg-slate-800 px-3 py-1.5 rounded-full border border-violet-700 border-opacity-30">
+                          {log.category}
+                        </span>
+                        <span className="text-sm text-gray-500">📅 {new Date(log.id).toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit'})}</span>
+                      </div>
+                      <h3 className="text-xl font-bold text-white capitalize mb-3">
+                        {log.food} 
+                        <span className="text-sm text-gray-400 font-normal ml-2">({log.grams}g)</span>
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                        <NutrientBadge icon="🔥" label="Calorie" value={log.calories.toFixed(0)} unit="kcal" color="orange" />
+                        <NutrientBadge icon="🥩" label="Proteine" value={log.protein.toFixed(1)} unit="g" color="blue" />
+                        <NutrientBadge icon="🌾" label="Carbs" value={log.carbs.toFixed(1)} unit="g" color="yellow" />
+                        <NutrientBadge icon="🥑" label="Grassi" value={log.fat.toFixed(1)} unit="g" color="green" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={() => handleAddAnotherDish(log.category)}
+                      className="text-sm font-semibold text-violet-400 hover:text-white transition-colors"
+                    >
+                      + Aggiungi un altro piatto
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// Componente piccolo per le card della Dashboard
-const StatCard = ({ label, value, unit, color }) => (
-  <div className={`${color} p-4 rounded-2xl text-white shadow-lg`}>
-    <p className="text-[10px] uppercase font-bold opacity-80">{label}</p>
+const StatCard = ({ label, value, unit, icon, gradient }) => (
+  <div className={`bg-gradient-to-br ${gradient} p-6 rounded-2xl text-white shadow-lg border border-white border-opacity-10 group hover:-translate-y-1 transition-transform duration-300`}>
+    <div className="flex items-center justify-between mb-2">
+      <p className="text-xs uppercase font-bold opacity-90 tracking-wider">{label}</p>
+      <span className="text-2xl group-hover:scale-110 transition-transform">{icon}</span>
+    </div>
     <div className="flex items-baseline gap-1">
-      <span className="text-2xl font-black">{value}</span>
-      <span className="text-xs font-medium">{unit}</span>
+      <span className="text-3xl font-black">{value}</span>
+      <span className="text-xs font-semibold opacity-80">{unit}</span>
+    </div>
+  </div>
+);
+
+const NutrientBadge = ({ icon, label, value, unit, color }) => (
+  <div className="bg-slate-800 border border-violet-700 border-opacity-20 px-3 py-2 rounded-lg hover:border-opacity-50 transition-all">
+    <div className="flex items-center gap-1 mb-1">
+      <span className="text-lg">{icon}</span>
+      <span className="text-xs text-gray-400">{label}</span>
+    </div>
+    <div className="text-sm font-bold text-white">
+      {value}<span className="text-xs text-gray-500 ml-1">{unit}</span>
     </div>
   </div>
 );
