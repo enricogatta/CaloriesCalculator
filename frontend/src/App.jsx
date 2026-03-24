@@ -6,6 +6,7 @@ const App = () => {
   const [category, setCategory] = useState('Colazione');
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [targetCardId, setTargetCardId] = useState(null);
   const mealInputRef = React.useRef(null);
 
   useEffect(() => {
@@ -17,12 +18,21 @@ const App = () => {
     localStorage.setItem('dailyMeals', JSON.stringify(logs));
   }, [logs]);
 
-  const totals = logs.reduce((acc, curr) => ({
-    calories: acc.calories + (Number(curr.calories) || 0),
-    protein: acc.protein + (Number(curr.protein) || 0),
-    carbs: acc.carbs + (Number(curr.carbs) || 0),
-    fat: acc.fat + (Number(curr.fat) || 0),
-  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  const totals = logs.reduce((acc, card) => {
+    const cardTotals = card.dishes.reduce((cAcc, dish) => ({
+      calories: cAcc.calories + (Number(dish.calories) || 0),
+      protein: cAcc.protein + (Number(dish.protein) || 0),
+      carbs: cAcc.carbs + (Number(dish.carbs) || 0),
+      fat: cAcc.fat + (Number(dish.fat) || 0),
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+    return {
+      calories: acc.calories + cardTotals.calories,
+      protein: acc.protein + cardTotals.protein,
+      carbs: acc.carbs + cardTotals.carbs,
+      fat: acc.fat + cardTotals.fat,
+    };
+  }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
   const handleAddMeal = async () => {
     if (!meal.trim() || !grams || isNaN(grams) || grams <= 0) {
@@ -44,17 +54,34 @@ const App = () => {
 
       const data = await response.json();
       
-      const newEntry = {
-        ...data,
-        id: Date.now(),
-        category,
-        grams: parseFloat(grams)
+      const newDish = {
+        id: Date.now() + Math.random(),
+        food: data.food || meal.trim(),
+        grams: parseFloat(grams),
+        calories: Number(data.calories) || 0,
+        protein: Number(data.protein) || 0,
+        carbs: Number(data.carbs) || 0,
+        fat: Number(data.fat) || 0,
       };
 
-      setLogs([newEntry, ...logs]);
+      if (targetCardId) {
+        setLogs((prev) => prev.map((card) => {
+          if (card.id !== targetCardId) return card;
+          return { ...card, dishes: [...card.dishes, newDish] };
+        }));
+      } else {
+        const newCard = {
+          id: Date.now(),
+          category,
+          dishes: [newDish],
+        };
+        setLogs((prev) => [newCard, ...prev]);
+      }
+
       setMeal('');
       setGrams('');
-      // Mantieni la categoria e focalizza su meal input per aggiungere rapidamente altri piatti
+      setTargetCardId(null);
+
       if (mealInputRef.current) {
         mealInputRef.current.focus();
       }
@@ -69,13 +96,29 @@ const App = () => {
     if(window.confirm("Vuoi cancellare tutti i dati di oggi?")) setLogs([]);
   };
 
-  const handleAddAnotherDish = (entryCategory) => {
+  const handleAddAnotherDish = (cardId, entryCategory) => {
+    setTargetCardId(cardId);
     setCategory(entryCategory);
     setMeal('');
     setGrams('');
     if (mealInputRef.current) {
       mealInputRef.current.focus();
     }
+  };
+
+  const handleRemoveCard = (cardId) => {
+    setLogs((prev) => prev.filter((card) => card.id !== cardId));
+  };
+
+  const handleRemoveDish = (cardId, dishId) => {
+    setLogs((prev) => prev
+      .map((card) => {
+        if (card.id !== cardId) return card;
+        const reducedDishes = card.dishes.filter((dish) => dish.id !== dishId);
+        return { ...card, dishes: reducedDishes };
+      })
+      .filter((card) => card.dishes.length > 0)
+    );
   };
 
   return (
@@ -92,7 +135,7 @@ const App = () => {
           {/* HEADER */}
           <header className="mb-12 text-center">
             <div className="inline-block mb-4">
-              <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600">NutriTrack</h1>
+              <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600">Calories Calculator</h1>
               <p className="text-cyan-400 text-sm tracking-widest mt-1 font-semibold">Your Daily Nutrition Monitor</p>
             </div>
           </header>
@@ -110,6 +153,9 @@ const App = () => {
             <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
               <span className="text-3xl">📝</span> Aggiungi un pasto
             </h2>
+            {targetCardId && (
+              <div className="mb-4 text-sm text-cyan-300">👉 Stai aggiungendo in card “{category}”. Premi Aggiungi per inserire il piatto.</div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
               <select 
                 className="md:col-span-3 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all"
@@ -167,41 +213,67 @@ const App = () => {
             )}
 
             <div className="space-y-3">
-              {logs.map((log) => (
-                <div 
-                  key={log.id} 
-                  className="bg-slate-900 border border-violet-700 border-opacity-30 p-6 rounded-2xl hover:border-opacity-70 transition-all duration-300 group hover:shadow-lg hover:shadow-violet-500/20 hover:-translate-y-0.5"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
+              {logs.map((log) => {
+                const cardTotals = log.dishes.reduce((cAcc, dish) => ({
+                  calories: cAcc.calories + Number(dish.calories),
+                  protein: cAcc.protein + Number(dish.protein),
+                  carbs: cAcc.carbs + Number(dish.carbs),
+                  fat: cAcc.fat + Number(dish.fat),
+                }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+                return (
+                  <div 
+                    key={log.id} 
+                    className="bg-slate-900 border border-violet-700 border-opacity-30 p-6 rounded-2xl hover:border-opacity-70 transition-all duration-300 group hover:shadow-lg hover:shadow-violet-500/20 hover:-translate-y-0.5"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
                         <span className="text-xs font-bold uppercase tracking-wider text-violet-300 bg-slate-800 px-3 py-1.5 rounded-full border border-violet-700 border-opacity-30">
                           {log.category}
                         </span>
-                        <span className="text-sm text-gray-500">📅 {new Date(log.id).toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit'})}</span>
+                        <div className="mt-2 text-gray-300 text-xs">Totale card</div>
+                        <div className="flex flex-wrap gap-2 mt-1 text-[11px] text-gray-400">
+                          <span>🔥 {cardTotals.calories.toFixed(0)} kcal</span>
+                          <span>🥩 {cardTotals.protein.toFixed(1)}g</span>
+                          <span>🍞 {cardTotals.carbs.toFixed(1)}g</span>
+                          <span>🥑 {cardTotals.fat.toFixed(1)}g</span>
+                        </div>
                       </div>
-                      <h3 className="text-xl font-bold text-white capitalize mb-3">
-                        {log.food} 
-                        <span className="text-sm text-gray-400 font-normal ml-2">({log.grams}g)</span>
-                      </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                        <NutrientBadge icon="🔥" label="Calorie" value={log.calories.toFixed(0)} unit="kcal" color="orange" />
-                        <NutrientBadge icon="🥩" label="Proteine" value={log.protein.toFixed(1)} unit="g" color="blue" />
-                        <NutrientBadge icon="🌾" label="Carbs" value={log.carbs.toFixed(1)} unit="g" color="yellow" />
-                        <NutrientBadge icon="🥑" label="Grassi" value={log.fat.toFixed(1)} unit="g" color="green" />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleRemoveCard(log.id)}
+                          className="text-xs text-red-400 hover:text-red-500 font-semibold"
+                        >
+                          Elimina card
+                        </button>
+                        <button
+                          onClick={() => handleAddAnotherDish(log.id, log.category)}
+                          className="text-xs text-violet-400 hover:text-violet-200 font-semibold"
+                        >
+                          + Nuovo piatto
+                        </button>
                       </div>
                     </div>
+
+                    <div className="space-y-2">
+                      {log.dishes.map((dish) => (
+                        <div key={dish.id} className="bg-slate-800 rounded-xl p-3 flex justify-between items-center border border-violet-700 border-opacity-20">
+                          <div>
+                            <p className="text-sm text-white font-semibold">{dish.food} <span className="text-xs text-gray-400">({dish.grams}g)</span></p>
+                            <p className="text-xs text-gray-300 mt-1">🔥 {dish.calories.toFixed(0)} kcal · 🥩 {dish.protein.toFixed(1)}g · 🍞 {dish.carbs.toFixed(1)}g · 🥑 {dish.fat.toFixed(1)}g</p>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveDish(log.id, dish.id)}
+                            className="text-sm rounded-md px-2 py-1 bg-red-500 hover:bg-red-400 text-white"
+                          >
+                            X
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      onClick={() => handleAddAnotherDish(log.category)}
-                      className="text-sm font-semibold text-violet-400 hover:text-white transition-colors"
-                    >
-                      + Aggiungi un altro piatto
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
