@@ -107,10 +107,12 @@ const App = () => {
   };
 
   const handleRemoveCard = (cardId) => {
+    if (!window.confirm("Sei sicuro di eliminare questa card pasto?")) return;
     setLogs((prev) => prev.filter((card) => card.id !== cardId));
   };
 
   const handleRemoveDish = (cardId, dishId) => {
+    if (!window.confirm("Sei sicuro di eliminare questo piatto?")) return;
     setLogs((prev) => prev
       .map((card) => {
         if (card.id !== cardId) return card;
@@ -244,7 +246,7 @@ const App = () => {
                           onClick={() => handleRemoveCard(log.id)}
                           className="text-xs text-red-400 hover:text-red-500 font-semibold"
                         >
-                          Elimina card
+                          Elimina pasto
                         </button>
                         <button
                           onClick={() => handleAddAnotherDish(log.id, log.category)}
