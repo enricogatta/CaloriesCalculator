@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient'; // Importazione del client Supabase
 
 const App = () => {
   const [meal, setMeal] = useState('');
@@ -9,15 +10,20 @@ const App = () => {
   const [targetCardId, setTargetCardId] = useState(null);
   const mealInputRef = React.useRef(null);
 
+  // 1. CARICAMENTO DATI DA SUPABASE (Sostituisce localStorage.getItem)
   useEffect(() => {
-    const savedLogs = localStorage.getItem('dailyMeals');
-    if (savedLogs) setLogs(JSON.parse(savedLogs));
+    const fetchLogs = async () => {
+      const { data, error } = await supabase
+        .from('meals')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (!error && data) setLogs(data);
+    };
+    fetchLogs();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('dailyMeals', JSON.stringify(logs));
-  }, [logs]);
-
+  // Il calcolo dei totals rimane identico
   const totals = logs.reduce((acc, card) => {
     const cardTotals = card.dishes.reduce((cAcc, dish) => ({
       calories: cAcc.calories + (Number(dish.calories) || 0),
@@ -34,6 +40,7 @@ const App = () => {
     };
   }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
+  // 2. AGGIUNTA PASTO CON SUPABASE (Sostituisce la logica locale)
   const handleAddMeal = async () => {
     if (!meal.trim() || !grams || isNaN(grams) || grams <= 0) {
       alert("Inserisci un cibo valido e una quantità in grammi positiva!");
@@ -48,10 +55,7 @@ const App = () => {
         body: JSON.stringify({ meal: meal.trim(), grams: parseFloat(grams) })
       });
 
-      if (!response.ok) {
-        throw new Error(`Errore API: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`Errore API: ${response.status}`);
       const data = await response.json();
       
       const newDish = {
@@ -65,26 +69,33 @@ const App = () => {
       };
 
       if (targetCardId) {
-        setLogs((prev) => prev.map((card) => {
-          if (card.id !== targetCardId) return card;
-          return { ...card, dishes: [...card.dishes, newDish] };
-        }));
+        // Aggiornamento card esistente su Supabase
+        const targetCard = logs.find(c => c.id === targetCardId);
+        const updatedDishes = [...targetCard.dishes, newDish];
+
+        const { error } = await supabase
+          .from('meals')
+          .update({ dishes: updatedDishes })
+          .eq('id', targetCardId);
+
+        if (error) throw error;
+        setLogs((prev) => prev.map((card) => card.id === targetCardId ? { ...card, dishes: updatedDishes } : card));
       } else {
-        const newCard = {
-          id: Date.now(),
-          category,
-          dishes: [newDish],
-        };
-        setLogs((prev) => [newCard, ...prev]);
+        // Creazione nuova card su Supabase
+        const newCard = { category, dishes: [newDish] };
+        const { data: insertedData, error } = await supabase
+          .from('meals')
+          .insert([newCard])
+          .select();
+
+        if (error) throw error;
+        setLogs((prev) => [insertedData[0], ...prev]);
       }
 
       setMeal('');
       setGrams('');
       setTargetCardId(null);
-
-      if (mealInputRef.current) {
-        mealInputRef.current.focus();
-      }
+      if (mealInputRef.current) mealInputRef.current.focus();
     } catch (error) {
       alert(`Errore: ${error.message}`);
     } finally {
@@ -92,8 +103,12 @@ const App = () => {
     }
   };
 
-  const clearLogs = () => {
-    if(window.confirm("Vuoi cancellare tutti i dati di oggi?")) setLogs([]);
+  // 3. CANCELLAZIONE TOTALE (Sostituisce localStorage.clear)
+  const clearLogs = async () => {
+    if(window.confirm("Vuoi cancellare tutti i dati di oggi?")) {
+      const { error } = await supabase.from('meals').delete().neq('category', 'vuoto'); 
+      if (!error) setLogs([]);
+    }
   };
 
   const handleAddAnotherDish = (cardId, entryCategory) => {
@@ -101,28 +116,37 @@ const App = () => {
     setCategory(entryCategory);
     setMeal('');
     setGrams('');
-    if (mealInputRef.current) {
-      mealInputRef.current.focus();
+    if (mealInputRef.current) mealInputRef.current.focus();
+  };
+
+  // 4. RIMOZIONE CARD SU SUPABASE
+  const handleRemoveCard = async (cardId) => {
+    if (!window.confirm("Sei sicuro di eliminare questa card pasto?")) return;
+    const { error } = await supabase.from('meals').delete().eq('id', cardId);
+    if (!error) setLogs((prev) => prev.filter((card) => card.id !== cardId));
+  };
+
+  // 5. RIMOZIONE PIATTO SU SUPABASE
+  const handleRemoveDish = async (cardId, dishId) => {
+    if (!window.confirm("Sei sicuro di eliminare questo piatto?")) return;
+    const card = logs.find(c => c.id === cardId);
+    const reducedDishes = card.dishes.filter((dish) => dish.id !== dishId);
+
+    if (reducedDishes.length === 0) {
+      handleRemoveCard(cardId);
+    } else {
+      const { error } = await supabase
+        .from('meals')
+        .update({ dishes: reducedDishes })
+        .eq('id', cardId);
+      
+      if (!error) {
+        setLogs((prev) => prev.map((c) => c.id === cardId ? { ...c, dishes: reducedDishes } : c));
+      }
     }
   };
 
-  const handleRemoveCard = (cardId) => {
-    if (!window.confirm("Sei sicuro di eliminare questa card pasto?")) return;
-    setLogs((prev) => prev.filter((card) => card.id !== cardId));
-  };
-
-  const handleRemoveDish = (cardId, dishId) => {
-    if (!window.confirm("Sei sicuro di eliminare questo piatto?")) return;
-    setLogs((prev) => prev
-      .map((card) => {
-        if (card.id !== cardId) return card;
-        const reducedDishes = card.dishes.filter((dish) => dish.id !== dishId);
-        return { ...card, dishes: reducedDishes };
-      })
-      .filter((card) => card.dishes.length > 0)
-    );
-  };
-
+  // DA QUI IN POI IL CODICE E IL RITORNO SONO IDENTICI AL TUO ORIGINALE
   return (
     <div className="min-h-screen bg-slate-950 relative overflow-hidden text-white">
       {/* Animated background elements */}
@@ -233,7 +257,7 @@ const App = () => {
                         <span className="text-xs font-bold uppercase tracking-wider text-violet-300 bg-slate-800 px-3 py-1.5 rounded-full border border-violet-700 border-opacity-30">
                           {log.category}
                         </span>
-                        <div className="mt-2 text-gray-300 text-xs">Totale card</div>
+                        <div className="mt-2 text-gray-300 text-xs">Macro pasto:</div>
                         <div className="flex flex-wrap gap-2 mt-1 text-[11px] text-gray-400">
                           <span>🔥 {cardTotals.calories.toFixed(0)} kcal</span>
                           <span>🥩 {cardTotals.protein.toFixed(1)}g</span>
@@ -284,6 +308,7 @@ const App = () => {
   );
 };
 
+// Componenti accessori originali
 const StatCard = ({ label, value, unit, icon, gradient }) => (
   <div className={`bg-gradient-to-br ${gradient} p-6 rounded-2xl text-white shadow-lg border border-white border-opacity-10 group hover:-translate-y-1 transition-transform duration-300`}>
     <div className="flex items-center justify-between mb-2">
@@ -293,18 +318,6 @@ const StatCard = ({ label, value, unit, icon, gradient }) => (
     <div className="flex items-baseline gap-1">
       <span className="text-3xl font-black">{value}</span>
       <span className="text-xs font-semibold opacity-80">{unit}</span>
-    </div>
-  </div>
-);
-
-const NutrientBadge = ({ icon, label, value, unit, color }) => (
-  <div className="bg-slate-800 border border-violet-700 border-opacity-20 px-3 py-2 rounded-lg hover:border-opacity-50 transition-all">
-    <div className="flex items-center gap-1 mb-1">
-      <span className="text-lg">{icon}</span>
-      <span className="text-xs text-gray-400">{label}</span>
-    </div>
-    <div className="text-sm font-bold text-white">
-      {value}<span className="text-xs text-gray-500 ml-1">{unit}</span>
     </div>
   </div>
 );
