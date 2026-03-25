@@ -8,6 +8,12 @@ const App = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [targetCardId, setTargetCardId] = useState(null);
+  const [showDishModal, setShowDishModal] = useState(false);
+  const [modalMeal, setModalMeal] = useState('');
+  const [modalGrams, setModalGrams] = useState('');
+  const [modalCardId, setModalCardId] = useState(null);
+  const [modalCardCategory, setModalCardCategory] = useState('');
+  const [modalLoading, setModalLoading] = useState(false);
   const mealInputRef = React.useRef(null);
 
   // 1. CARICAMENTO DATI DA SUPABASE (Sostituisce localStorage.getItem)
@@ -112,11 +118,66 @@ const App = () => {
   };
 
   const handleAddAnotherDish = (cardId, entryCategory) => {
-    setTargetCardId(cardId);
-    setCategory(entryCategory);
-    setMeal('');
-    setGrams('');
-    if (mealInputRef.current) mealInputRef.current.focus();
+    setModalCardId(cardId);
+    setModalCardCategory(entryCategory);
+    setModalMeal('');
+    setModalGrams('');
+    setShowDishModal(true);
+  };
+
+  const closeModal = () => {
+    setShowDishModal(false);
+    setModalCardId(null);
+    setModalCardCategory('');
+    setModalMeal('');
+    setModalGrams('');
+    setModalLoading(false);
+  };
+
+  const handleAddDishFromModal = async () => {
+    if (!modalMeal.trim() || !modalGrams || isNaN(modalGrams) || modalGrams <= 0) {
+      alert("Inserisci un cibo valido e una quantità in grammi positiva!");
+      return;
+    }
+    setModalLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meal: modalMeal.trim(), grams: parseFloat(modalGrams) })
+      });
+
+      if (!response.ok) throw new Error(`Errore API: ${response.status}`);
+      const data = await response.json();
+      
+      const newDish = {
+        id: Date.now() + Math.random(),
+        food: data.food || modalMeal.trim(),
+        grams: parseFloat(modalGrams),
+        calories: Number(data.calories) || 0,
+        protein: Number(data.protein) || 0,
+        carbs: Number(data.carbs) || 0,
+        fat: Number(data.fat) || 0,
+      };
+
+      const targetCard = logs.find(c => c.id === modalCardId);
+      const updatedDishes = [...targetCard.dishes, newDish];
+
+      const { error } = await supabase
+        .from('meals')
+        .update({ dishes: updatedDishes })
+        .eq('id', modalCardId);
+
+      if (error) throw error;
+      setLogs((prev) => prev.map((card) => card.id === modalCardId ? { ...card, dishes: updatedDishes } : card));
+      
+      closeModal();
+    } catch (error) {
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setModalLoading(false);
+    }
   };
 
   // 4. RIMOZIONE CARD SU SUPABASE
@@ -304,6 +365,61 @@ const App = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL PER AGGIUNGERE PIATTO */}
+      {showDishModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-violet-700 border-opacity-50 rounded-3xl p-8 w-full max-w-md">
+            <h2 className="text-2xl font-bold text-white mb-4">Aggiungi un piatto a {modalCardCategory}</h2>
+            <p className="text-sm text-gray-400 mb-6">Aggiungi un nuovo piatto a questo pasto.</p>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">Piatto</label>
+                <input 
+                  type="text" 
+                  placeholder="Es: Pasta al pesto" 
+                  value={modalMeal} 
+                  onChange={(e) => setModalMeal(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-2">Grammi</label>
+                <input 
+                  type="number" 
+                  placeholder="Es: 200" 
+                  value={modalGrams} 
+                  onChange={(e) => setModalGrams(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeModal}
+                disabled={modalLoading}
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-gray-300 bg-slate-800 hover:bg-slate-700 transition-all"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleAddDishFromModal}
+                disabled={modalLoading}
+                className={`flex-1 px-4 py-3 rounded-xl font-bold text-white transition-all active:scale-95 ${ 
+                  modalLoading 
+                    ? 'bg-slate-700 opacity-50 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:shadow-lg hover:shadow-violet-500/50'
+                }`}
+              >
+                {modalLoading ? '⏳' : '✚ Aggiungi piatto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
