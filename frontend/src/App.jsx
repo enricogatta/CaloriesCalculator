@@ -15,6 +15,7 @@ const App = () => {
   const [modalCardCategory, setModalCardCategory] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [editingDishId, setEditingDishId] = useState(null);
   const mealInputRef = React.useRef(null);
 
   // Funzione per ottenere la data odierna in formato YYYY-MM-DD
@@ -136,6 +137,15 @@ const App = () => {
     setModalCardCategory(entryCategory);
     setModalMeal('');
     setModalGrams('');
+    setEditingDishId(null);
+    setShowDishModal(true);
+  };
+
+  const handleEditDish = (cardId, dish) => {
+    setModalCardId(cardId);
+    setModalMeal(dish.food);
+    setModalGrams(dish.grams.toString());
+    setEditingDishId(dish.id);
     setShowDishModal(true);
   };
 
@@ -145,6 +155,7 @@ const App = () => {
     setModalCardCategory('');
     setModalMeal('');
     setModalGrams('');
+    setEditingDishId(null);
     setModalLoading(false);
   };
 
@@ -163,6 +174,27 @@ const App = () => {
     setModalLoading(true);
 
     try {
+      // MODALITA' MODIFICA
+      if (editingDishId) {
+        const targetCard = logs.find(c => c.id === modalCardId);
+        const updatedDishes = targetCard.dishes.map(d =>
+          d.id === editingDishId 
+            ? { ...d, food: modalMeal.trim(), grams: parseFloat(modalGrams) }
+            : d
+        );
+
+        const { error } = await supabase
+          .from('meals')
+          .update({ dishes: updatedDishes })
+          .eq('id', modalCardId);
+
+        if (error) throw error;
+        setLogs((prev) => prev.map((card) => card.id === modalCardId ? { ...card, dishes: updatedDishes } : card));
+        closeModal();
+        return;
+      }
+
+      // MODALITA' AGGIUNTA
       const response = await fetch('http://localhost:5000/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -407,12 +439,22 @@ const App = () => {
                             <p className="text-sm text-white font-semibold">{dish.food} <span className="text-xs text-gray-400">({dish.grams}g)</span></p>
                             <p className="text-xs text-gray-300 mt-1">🔥 {dish.calories.toFixed(0)} kcal · 🥩 {dish.protein.toFixed(1)}g · 🍞 {dish.carbs.toFixed(1)}g · 🥑 {dish.fat.toFixed(1)}g</p>
                           </div>
-                          <button
-                            onClick={() => handleRemoveDish(log.id, dish.id)}
-                            className="text-sm rounded-md px-2 py-1 bg-red-500 hover:bg-red-400 text-white"
-                          >
-                            X
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditDish(log.id, dish)}
+                              className="text-sm rounded-md px-2 py-1 bg-violet-600 hover:bg-violet-500 text-white font-semibold transition-colors"
+                              title="Modifica piatto"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleRemoveDish(log.id, dish.id)}
+                              className="text-sm rounded-md px-2 py-1 bg-red-500 hover:bg-red-400 text-white font-semibold transition-colors"
+                              title="Elimina piatto"
+                            >
+                              X
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -472,7 +514,7 @@ const App = () => {
                     : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:shadow-lg hover:shadow-violet-500/50'
                 }`}
               >
-                {modalLoading ? '⏳' : '✚ Aggiungi piatto'}
+                {modalLoading ? '⏳' : editingDishId ? '✏️ Salva modifiche' : '✚ Aggiungi piatto'}
               </button>
             </div>
           </div>
