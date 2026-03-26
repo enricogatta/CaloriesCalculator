@@ -17,6 +17,7 @@ const App = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [editingDishId, setEditingDishId] = useState(null);
   const mealInputRef = React.useRef(null);
+  const todayButtonRef = React.useRef(null);
 
   // Funzione per ottenere la data odierna in formato YYYY-MM-DD
   const getTodayDate = () => new Date().toISOString().split('T')[0];
@@ -35,6 +36,15 @@ const App = () => {
       if (!error && data) setLogs(data);
     };
     fetchLogs();
+  }, []);
+
+  // 2. SCROLL AUTOMATICO AL GIORNO ODIERNO QUANDO L'APP CARICA
+  useEffect(() => {
+    if (todayButtonRef.current) {
+      setTimeout(() => {
+        todayButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }, 100);
+    }
   }, []);
 
   // Il calcolo dei totals rimane identico
@@ -291,6 +301,7 @@ const App = () => {
                 return (
                   <button
                     key={date}
+                    ref={isToday ? todayButtonRef : null}
                     onClick={() => !isFuture && setSelectedDate(date)}
                     disabled={isFuture}
                     className={`px-4 py-3 rounded-lg font-semibold text-sm whitespace-nowrap transition-all ${
