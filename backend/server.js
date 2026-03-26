@@ -14,11 +14,15 @@ app.post('/api/analyze', async (req, res) => {
     const { meal, grams } = req.body;
     console.log(`--- Richiesta reale per: ${grams}g di ${meal} ---`);
  
-    // --- PROMPT AGGIORNATO PER MASSIMA COERENZA ---
+    // --- PROMPT AGGIORNATO PER VALIDAZIONE ALIMENTI ---
     const prompt = `Agisci come un database nutrizionale scientifico e certificato.
     Analizza esattamente ${grams}g di "${meal}".
-   
-    REGOLE RIGIDE:
+
+    PRIMA DI TUTTO: Verifica se "${meal}" è un alimento reale e commestibile.
+    - Se NON è un cibo (es. "ciao", "test", "123", parole senza senso, o non commestibili), rispondi ESCLUSIVAMENTE con: {"error": "invalid_food"}
+    - Se è un cibo valido, procedi con l'analisi nutrizionale.
+
+    REGOLE RIGIDE per alimenti validi:
     1. Usa esclusivamente valori medi standard tratti da tabelle nutrizionali ufficiali (es. USDA).
     2. Sii estremamente deterministico: per lo stesso alimento e lo stesso peso, devi fornire SEMPRE gli stessi valori ogni volta che ti viene chiesto.
     3. Non aggiungere variazioni "creative". Se l'alimento è un ingrediente puro (es. Yogurt Greco), usa il valore standard per 100g e rapportalo a ${grams}g.
