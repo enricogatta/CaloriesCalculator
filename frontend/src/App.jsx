@@ -158,10 +158,18 @@ const App = () => {
         if (error) throw error;
         setLogs((prev) => prev.map((card) => card.id === targetCardId ? { ...card, dishes: updatedDishes } : card));
       } else {
-        const newCard = { category, dishes: [newDish], date: selectedDate };
-        const { data: insertedData, error } = await supabase.from('meals').insert([newCard]).select();
-        if (error) throw error;
-        setLogs((prev) => [insertedData[0], ...prev]);
+        const existingMealCard = logs.find(c => c.category === category && c.date === selectedDate);
+        if (existingMealCard) {
+          const updatedDishes = [...existingMealCard.dishes, newDish];
+          const { error } = await supabase.from('meals').update({ dishes: updatedDishes }).eq('id', existingMealCard.id);
+          if (error) throw error;
+          setLogs((prev) => prev.map((card) => card.id === existingMealCard.id ? { ...card, dishes: updatedDishes } : card));
+        } else {
+          const newCard = { category, dishes: [newDish], date: selectedDate };
+          const { data: insertedData, error } = await supabase.from('meals').insert([newCard]).select();
+          if (error) throw error;
+          setLogs((prev) => [insertedData[0], ...prev]);
+        }
       }
 
       setMeal(''); setGrams(''); setTargetCardId(null);
