@@ -8,16 +8,23 @@ app.use(express.json());
 
 const API_KEY = process.env.GEMINI_API_KEY;
 // Usiamo l'endpoint v1 stabile, non v1beta che ti dava errore
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
 app.post('/api/analyze', async (req, res) => {
     const { meal, grams } = req.body;
     console.log(`--- Richiesta reale per: ${grams}g di ${meal} ---`);
 
-    const prompt = `Analizza ${grams}g di ${meal}. 
-    Rispondi esclusivamente con un oggetto JSON: 
+    // --- PROMPT AGGIORNATO PER MASSIMA COERENZA ---
+    const prompt = `Agisci come un database nutrizionale scientifico e certificato.
+    Analizza esattamente ${grams}g di "${meal}".
+    
+    REGOLE RIGIDE:
+    1. Usa esclusivamente valori medi standard tratti da tabelle nutrizionali ufficiali (es. USDA).
+    2. Sii estremamente deterministico: per lo stesso alimento e lo stesso peso, devi fornire SEMPRE gli stessi valori ogni volta che ti viene chiesto.
+    3. Non aggiungere variazioni "creative". Se l'alimento è un ingrediente puro (es. Yogurt Greco), usa il valore standard per 100g e rapportalo a ${grams}g.
+    4. Rispondi ESCLUSIVAMENTE con questo oggetto JSON puro: 
     {"food": "${meal}", "calories": num, "protein": num, "carbs": num, "fat": num}. 
-    Usa numeri puri, non stringhe. Niente testo extra.`;
+    Usa solo numeri puri, non stringhe. Niente testo aggiuntivo, commenti o blocchi di codice markdown.`;
 
     try {
         const response = await fetch(GEMINI_URL, {
@@ -57,5 +64,5 @@ app.post('/api/analyze', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`🚀 Server in ascolto sulla porta ${PORT}`);
-    console.log(`🔑 Chiave caricata: ${API_KEY ? "SÌ" : "NO"}`);
+    console.log(`API Gemini pronta per l'analisi dei pasti.`);
 });
