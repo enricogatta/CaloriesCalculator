@@ -174,27 +174,7 @@ const App = () => {
     setModalLoading(true);
 
     try {
-      // MODALITA' MODIFICA
-      if (editingDishId) {
-        const targetCard = logs.find(c => c.id === modalCardId);
-        const updatedDishes = targetCard.dishes.map(d =>
-          d.id === editingDishId 
-            ? { ...d, food: modalMeal.trim(), grams: parseFloat(modalGrams) }
-            : d
-        );
-
-        const { error } = await supabase
-          .from('meals')
-          .update({ dishes: updatedDishes })
-          .eq('id', modalCardId);
-
-        if (error) throw error;
-        setLogs((prev) => prev.map((card) => card.id === modalCardId ? { ...card, dishes: updatedDishes } : card));
-        closeModal();
-        return;
-      }
-
-      // MODALITA' AGGIUNTA
+      // Chiamata API per ricalcolare i macro (sia per aggiunta che modifica)
       const response = await fetch('http://localhost:5000/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,18 +184,37 @@ const App = () => {
       if (!response.ok) throw new Error(`Errore API: ${response.status}`);
       const data = await response.json();
       
-      const newDish = {
-        id: Date.now() + Math.random(),
-        food: data.food || modalMeal.trim(),
-        grams: parseFloat(modalGrams),
-        calories: Number(data.calories) || 0,
-        protein: Number(data.protein) || 0,
-        carbs: Number(data.carbs) || 0,
-        fat: Number(data.fat) || 0,
-      };
-
       const targetCard = logs.find(c => c.id === modalCardId);
-      const updatedDishes = [...targetCard.dishes, newDish];
+      
+      let updatedDishes;
+      if (editingDishId) {
+        // MODALITA' MODIFICA - aggiorna il piatto esistente con nuovi dati
+        updatedDishes = targetCard.dishes.map(d =>
+          d.id === editingDishId 
+            ? {
+                ...d,
+                food: data.food || modalMeal.trim(),
+                grams: parseFloat(modalGrams),
+                calories: Number(data.calories) || 0,
+                protein: Number(data.protein) || 0,
+                carbs: Number(data.carbs) || 0,
+                fat: Number(data.fat) || 0,
+              }
+            : d
+        );
+      } else {
+        // MODALITA' AGGIUNTA - crea nuovo piatto
+        const newDish = {
+          id: Date.now() + Math.random(),
+          food: data.food || modalMeal.trim(),
+          grams: parseFloat(modalGrams),
+          calories: Number(data.calories) || 0,
+          protein: Number(data.protein) || 0,
+          carbs: Number(data.carbs) || 0,
+          fat: Number(data.fat) || 0,
+        };
+        updatedDishes = [...targetCard.dishes, newDish];
+      }
 
       const { error } = await supabase
         .from('meals')
