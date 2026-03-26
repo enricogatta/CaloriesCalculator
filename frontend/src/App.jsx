@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient'; // Importazione del client Supabase
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const App = () => {
   const [meal, setMeal] = useState('');
   const [grams, setGrams] = useState('');
@@ -140,7 +142,7 @@ const App = () => {
           food: existing.food, calories: existing.calPerG * g, protein: existing.proPerG * g, carbs: existing.choPerG * g, fat: existing.fatPerG * g
         };
       } else {
-        const response = await fetch('http://localhost:5000/api/analyze', {
+        const response = await fetch(`${API_BASE_URL}/api/analyze`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: meal.trim(), grams: parseFloat(grams) })
         });
         if (!response.ok) throw new Error(`Errore API: ${response.status}`);
@@ -198,7 +200,7 @@ const App = () => {
         const g = parseFloat(modalGrams);
         data = { food: existing.food, calories: existing.calPerG * g, protein: existing.proPerG * g, carbs: existing.choPerG * g, fat: existing.fatPerG * g };
       } else {
-        const response = await fetch('http://localhost:5000/api/analyze', {
+        const response = await fetch(`${API_BASE_URL}/api/analyze`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: modalMeal.trim(), grams: parseFloat(modalGrams) })
         });
         if (!response.ok) throw new Error(`Errore API: ${response.status}`);
