@@ -148,19 +148,38 @@ const App = () => {
           card.id === targetCardId ? { ...card, dishes: updatedDishes } : card
         ));
       } else {
-        const newCard = {
-          category,
-          dishes: [newDish],
-          date: selectedDate
-        };
+        // Controlla se un pasto della stessa categoria esiste già questa giornata
+        const existingMealCard = dailyLogs.find(card => card.category === category);
 
-        const { data: insertedData, error } = await supabase
-          .from('meals')
-          .insert([newCard])
-          .select();
+        if (existingMealCard) {
+          // Se esiste, aggiungi il piatto a quel pasto
+          const updatedDishes = [...existingMealCard.dishes, newDish];
 
-        if (error) throw error;
-        setLogs((prev) => [insertedData[0], ...prev]);
+          const { error } = await supabase
+            .from('meals')
+            .update({ dishes: updatedDishes })
+            .eq('id', existingMealCard.id);
+
+          if (error) throw error;
+          setLogs((prev) => prev.map((card) => 
+            card.id === existingMealCard.id ? { ...card, dishes: updatedDishes } : card
+          ));
+        } else {
+          // Se non esiste, crea un nuovo pasto
+          const newCard = {
+            category,
+            dishes: [newDish],
+            date: selectedDate
+          };
+
+          const { data: insertedData, error } = await supabase
+            .from('meals')
+            .insert([newCard])
+            .select();
+
+          if (error) throw error;
+          setLogs((prev) => [insertedData[0], ...prev]);
+        }
       }
 
       setMeal('');
@@ -452,6 +471,11 @@ const App = () => {
             <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
               <span className="text-3xl">📝</span> Aggiungi un pasto
             </h2>
+            {dailyLogs.find(card => card.category === category) && (
+              <div className="mb-4 p-3 rounded-lg bg-violet-900 bg-opacity-30 border border-violet-600 text-violet-300 text-sm font-semibold">
+                ℹ️ Un "{category}" esiste già oggi. Il piatto sarà aggiunto a quel pasto!
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
               <select 
                 className="md:col-span-3 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all cursor-pointer"
@@ -546,7 +570,7 @@ const App = () => {
                           onClick={() => handleAddAnotherDish(log.id, log.category)}
                           className="text-xs text-violet-400 hover:text-violet-200 font-semibold transition-colors bg-slate-800 px-3 py-1.5 rounded-lg border border-violet-700 border-opacity-30"
                         >
-                          + Nuovo piatto
+                          ➕ Aggiungi al pasto
                         </button>
                       </div>
                     </div>
