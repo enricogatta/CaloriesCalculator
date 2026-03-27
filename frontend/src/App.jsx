@@ -232,9 +232,13 @@ const App = () => {
 
   // ... (Tutte le funzioni di cancellazione rimangono identiche)
   const clearLogs = async () => {
-    if(window.confirm("Sei sicuro di voler cancellare tutti i dati della cronologia? Questa operazione è irreversibile.")) {
-      const { error } = await supabase.from('meals').delete().neq('category', 'vuoto'); 
-      if (!error) setLogs([]); else alert("Errore durante la cancellazione");
+    if(window.confirm("Sei sicuro di voler cancellare tutti i pasti del giorno selezionato? Questa operazione è irreversibile.")) {
+      const { error } = await supabase.from('meals').delete().eq('date', selectedDate);
+      if (!error) {
+        setLogs((prev) => prev.filter((card) => card.date !== selectedDate));
+      } else {
+        alert("Errore durante la cancellazione");
+      }
     }
   };
 
