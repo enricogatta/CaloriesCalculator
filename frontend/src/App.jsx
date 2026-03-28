@@ -5,7 +5,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const App = () => {
   const [meal, setMeal] = useState('');
-  const [grams, setGrams] = useState('');
+  const [quantityType, setQuantityType] = useState('grams'); // 'grams', 'unit', 'teaspoon'
+  const [quantity, setQuantity] = useState('');
   const [category, setCategory] = useState('Colazione');
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -121,9 +122,27 @@ const App = () => {
   };
 
   // --- LOGICA AGGIUNTA PASTI E PIATTI ---
+  // Conversione quantità in grammi (stima base, da migliorare/espandere)
+  const quantityToGrams = (food, type, qty) => {
+    const q = parseFloat(qty);
+    if (type === 'grams') return q;
+    if (type === 'unit') {
+      // Stime base, personalizzabili
+      const dict = {
+        pizza: 300, piadina: 130, hamburger: 200, panino: 120, uovo: 60, mela: 150, banana: 120, fetta: 30, biscotto: 12
+      };
+      const key = food.trim().toLowerCase();
+      for (const k in dict) if (key.includes(k)) return q * dict[k];
+      return q * 100; // default unit
+    }
+    if (type === 'teaspoon') return q * 5;
+    if (type === 'tablespoon') return q * 15;
+    return q;
+  };
+
   const handleAddMeal = async () => {
-    if (!meal.trim() || !grams || isNaN(grams) || grams <= 0) {
-      alert("Inserisci un cibo valido e una quantità in grammi positiva!");
+    if (!meal.trim() || !quantity || isNaN(quantity) || quantity <= 0) {
+      alert("Inserisci un cibo valido e una quantità positiva!");
       return;
     }
     if (selectedDate > getTodayDate()) {
@@ -134,23 +153,23 @@ const App = () => {
     setLoading(true);
     try {
       let data;
+      const grams = quantityToGrams(meal, quantityType, quantity);
       const existing = findExistingNutrients(meal);
 
       if (existing) {
-        const g = parseFloat(grams);
         data = {
-          food: existing.food, calories: existing.calPerG * g, protein: existing.proPerG * g, carbs: existing.choPerG * g, fat: existing.fatPerG * g
+          food: existing.food, calories: existing.calPerG * grams, protein: existing.proPerG * grams, carbs: existing.choPerG * grams, fat: existing.fatPerG * grams
         };
       } else {
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: meal.trim(), grams: parseFloat(grams) })
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: meal.trim(), grams })
         });
         if (!response.ok) throw new Error(`Errore API: ${response.status}`);
         data = await response.json();
       }
       
       const newDish = {
-        id: Date.now() + Math.random(), food: data.food || meal.trim(), grams: parseFloat(grams), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0,
+        id: Date.now() + Math.random(), food: data.food || meal.trim(), grams, quantityType, quantity: parseFloat(quantity), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0,
       };
 
       if (targetCardId) {
@@ -174,7 +193,7 @@ const App = () => {
         }
       }
 
-      setMeal(''); setGrams(''); setTargetCardId(null);
+      setMeal(''); setQuantity(''); setTargetCardId(null); setQuantityType('grams');
       if (mealInputRef.current) mealInputRef.current.focus();
     } catch (error) {
       alert(`Errore: ${error.message}`);
@@ -470,11 +489,22 @@ const App = () => {
                     type="text" placeholder="Es: Pasta al pesto" 
                     value={meal} onChange={(e) => setMeal(e.target.value)}
                   />
-                  <input 
-                    className="md:col-span-2 px-3 py-2 xs:px-4 xs:py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
-                    type="number" placeholder="Grammi" 
-                    value={grams} onChange={(e) => setGrams(e.target.value)}
-                  />
+                  <div className="md:col-span-2 flex gap-1 items-center">
+                    <input 
+                      className="w-20 px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
+                      type="number" min="0" step="any" placeholder="Quantità" 
+                      value={quantity} onChange={e => setQuantity(e.target.value)}
+                    />
+                    <select
+                      className="px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all text-xs xs:text-sm"
+                      value={quantityType} onChange={e => setQuantityType(e.target.value)}
+                    >
+                      <option value="grams">g</option>
+                      <option value="unit">unità</option>
+                      <option value="teaspoon">cucchiaino</option>
+                      <option value="tablespoon">cucchiaio</option>
+                    </select>
+                  </div>
                   <button
                     onClick={handleAddMeal} disabled={loading}
                     className={`md:col-span-2 px-3 py-2 xs:px-4 xs:py-3 rounded-xl font-bold text-white transition-all active:scale-95 transform text-sm xs:text-base ${
