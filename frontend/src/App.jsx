@@ -338,14 +338,14 @@ const App = () => {
       )}
 
       {/* CONTENITORE PRINCIPALE */}
-      <div className="relative z-10 min-h-screen p-4 pt-20 md:p-8 md:pt-8 font-sans">
-        <div className="max-w-4xl mx-auto">
+      <div className="relative z-10 min-h-screen p-2 pt-16 md:p-8 md:pt-8 font-sans">
+        <div className="max-w-full md:max-w-4xl mx-auto">
           
           {/* HEADER COMUNE AD ENTRAMBE LE PAGINE */}
-          <header className="mb-12 text-center">
-            <div className="inline-block mb-4">
-              <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600">Calories Calculator</h1>
-              <p className="text-cyan-400 text-sm tracking-widest mt-1 font-semibold">Your Daily Nutrition Monitor</p>
+          <header className="mb-8 text-center">
+            <div className="inline-block mb-2">
+              <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600 leading-tight">Calories Calculator</h1>
+              <p className="text-cyan-400 text-xs xs:text-sm tracking-widest mt-1 font-semibold">Your Daily Nutrition Monitor</p>
             </div>
           </header>
 
@@ -383,13 +383,13 @@ const App = () => {
             /* --- PAGINA PRINCIPALE: CALORIES CALCULATOR --- */
             <div className="animate-in fade-in duration-500">
               {/* Calendario Orizzontale */}
-              <div className="mb-10 flex items-center justify-center gap-4">
+              <div className="mb-6 flex items-center justify-center gap-2 xs:gap-3 sm:gap-4">
                 <button 
                   onClick={() => setSelectedDate(new Date(new Date(selectedDate).getTime() - 86400000).toISOString().split('T')[0])}
                   className="px-4 py-2 text-violet-400 hover:text-white transition-colors text-xl font-bold"
                 >←</button>
 
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-[280px] md:max-w-3xl">
+                <div className="flex gap-1 xs:gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-[220px] xs:max-w-[280px] md:max-w-3xl">
                   {Array.from({ length: 30 }, (_, i) => {
                     const date = new Date(new Date().getTime() - (14 - i) * 86400000).toISOString().split('T')[0];
                     const isSelected = date === selectedDate;
@@ -428,7 +428,7 @@ const App = () => {
               </div>
 
               {/* DASHBOARD STATS CON PERCENTUALI */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
+              <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-4 gap-2 xs:gap-3 mb-6 xs:mb-8">
                 <StatCard 
                   label="Calorie" value={dailyTotals.calories.toFixed(0)} unit="kcal" icon="🔥" gradient="from-orange-500 to-red-600" 
                   percentage={goals.calories > 0 ? Math.round((dailyTotals.calories / goals.calories) * 100) : 0}
@@ -449,13 +449,13 @@ const App = () => {
 
               {/* INPUT FORM */}
               <div className={`
-                bg-slate-900 rounded-3xl border border-violet-700 border-opacity-30 p-8 mb-10 backdrop-blur-sm hover:border-opacity-70 transition-all duration-300
+                bg-slate-900 rounded-2xl border border-violet-700 border-opacity-30 p-3 xs:p-4 sm:p-8 mb-6 xs:mb-8 backdrop-blur-sm hover:border-opacity-70 transition-all duration-300
                 ${selectedDate > getTodayDate() ? 'opacity-50 pointer-events-none grayscale' : ''}
               `}>
-                <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
-                  <span className="text-3xl">📝</span> Aggiungi un pasto
+                <h2 className="text-xl xs:text-2xl font-bold mb-4 xs:mb-6 text-white flex items-center gap-2">
+                  <span className="text-2xl xs:text-3xl">📝</span> Aggiungi un pasto
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div className="grid grid-cols-1 xs:grid-cols-1 md:grid-cols-12 gap-2 xs:gap-3">
                   <select 
                     className="md:col-span-3 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all cursor-pointer"
                     value={category} onChange={(e) => setCategory(e.target.value)}
@@ -464,18 +464,18 @@ const App = () => {
                   </select>
                   <input 
                     ref={mealInputRef}
-                    className="md:col-span-5 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500"
+                    className="md:col-span-5 px-3 py-2 xs:px-4 xs:py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
                     type="text" placeholder="Es: Pasta al pesto" 
                     value={meal} onChange={(e) => setMeal(e.target.value)}
                   />
                   <input 
-                    className="md:col-span-2 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500"
+                    className="md:col-span-2 px-3 py-2 xs:px-4 xs:py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
                     type="number" placeholder="Grammi" 
                     value={grams} onChange={(e) => setGrams(e.target.value)}
                   />
                   <button
                     onClick={handleAddMeal} disabled={loading}
-                    className={`md:col-span-2 px-4 py-3 rounded-xl font-bold text-white transition-all active:scale-95 transform ${
+                    className={`md:col-span-2 px-3 py-2 xs:px-4 xs:py-3 rounded-xl font-bold text-white transition-all active:scale-95 transform text-sm xs:text-base ${
                       loading ? 'bg-slate-700 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:shadow-lg hover:shadow-violet-500/50 hover:-translate-y-0.5'
                     }`}
                   >
