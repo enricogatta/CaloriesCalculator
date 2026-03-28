@@ -297,10 +297,12 @@ const App = () => {
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply opacity-10 blur-3xl"></div>
       </div>
 
-      {/* PULSANTE HAMBURGER MENU */}
+      {/* PULSANTE HAMBURGER MENU SEMPRE FISSO IN ALTO */}
       <button 
         onClick={() => setIsSidebarOpen(true)}
-        className="fixed top-6 left-6 z-40 p-3 bg-slate-900 border border-violet-700 border-opacity-50 rounded-xl text-white hover:bg-slate-800 transition-all shadow-lg shadow-violet-500/20"
+        className="fixed top-0 left-0 z-50 p-3 mt-2 ml-2 bg-slate-900 border border-violet-700 border-opacity-50 rounded-xl text-white hover:bg-slate-800 transition-all shadow-lg shadow-violet-500/20"
+        style={{ position: 'fixed', top: 0, left: 0 }}
+        aria-label="Apri menu"
       >
         <div className="space-y-1.5">
           <div className="w-6 h-0.5 bg-white rounded-full"></div>
