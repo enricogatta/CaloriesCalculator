@@ -1,0 +1,38 @@
+{
+  "name": "Calories Calculator",
+  "short_name": "CalCalc",
+  "description": "Your Daily Nutrition Monitor - Track calories, protein, carbs and fat with AI-powered food analysis",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f1e",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["health", "fitness", "lifestyle"],
+  "serviceworker": {
+    "src": "/sw.js",
+    "scope": "/",
+    "type": "module"
+  },
+  "icons": [
+    {
+      "src": "/icona.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icona.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "48x46",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

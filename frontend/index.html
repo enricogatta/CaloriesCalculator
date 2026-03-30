@@ -2,9 +2,60 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/icona.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#7c3aed" />
+    <meta name="msapplication-TileColor" content="#7c3aed" />
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="/icona.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Calories Calculator" />
+
+    <!-- Windows Tile -->
+    <meta name="msapplication-TileImage" content="/icona.png" />
+    <meta name="application-name" content="Calories Calculator" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Calories Calculator" />
+    <meta property="og:description" content="Your Daily Nutrition Monitor - Track calories, protein, carbs and fat with AI-powered food analysis" />
+    <meta property="og:image" content="/icona.png" />
+    <meta property="og:type" content="website" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Calories Calculator" />
+    <meta name="twitter:description" content="Your Daily Nutrition Monitor - Track calories, protein, carbs and fat with AI-powered food analysis" />
+
+    <title>Calories Calculator</title>
+    <script>
+      // Registrazione Service Worker per PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+
+      // Controllo installazione PWA
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        console.log('PWA install prompt disponibile');
+        e.preventDefault();
+        deferredPrompt = e;
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

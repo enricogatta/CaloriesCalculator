@@ -13,7 +13,8 @@ const App = () => {
   const [targetCardId, setTargetCardId] = useState(null);
   const [showDishModal, setShowDishModal] = useState(false);
   const [modalMeal, setModalMeal] = useState('');
-  const [modalGrams, setModalGrams] = useState('');
+  const [modalQuantityType, setModalQuantityType] = useState('grams');
+  const [modalQuantity, setModalQuantity] = useState('');
   const [modalCardId, setModalCardId] = useState(null);
   const [modalCardCategory, setModalCardCategory] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
@@ -37,17 +38,17 @@ const App = () => {
   const dailyLogs = logs.filter(log => log.date === selectedDate);
 
   // --- LOGICA DI MEMORIA: Cerca se il piatto è già stato inserito in passato ---
-  const findExistingNutrients = (foodName) => {
+  const findExistingNutrients = (foodName, quantityType, quantity) => {
     const normalizedSearch = foodName.trim().toLowerCase();
     for (const log of logs) {
-      const found = log.dishes.find(d => d.food.toLowerCase() === normalizedSearch);
+      const found = log.dishes.find(d => d.food.toLowerCase() === normalizedSearch && d.quantityType === quantityType && d.quantity === parseFloat(quantity));
       if (found) {
         return {
           food: found.food,
-          calPerG: found.calories / found.grams,
-          proPerG: found.protein / found.grams,
-          choPerG: found.carbs / found.grams,
-          fatPerG: found.fat / found.grams
+          calories: found.calories,
+          protein: found.protein,
+          carbs: found.carbs,
+          fat: found.fat
         };
       }
     }
@@ -122,23 +123,7 @@ const App = () => {
   };
 
   // --- LOGICA AGGIUNTA PASTI E PIATTI ---
-  // Conversione quantità in grammi (stima base, da migliorare/espandere)
-  const quantityToGrams = (food, type, qty) => {
-    const q = parseFloat(qty);
-    if (type === 'grams') return q;
-    if (type === 'unit') {
-      // Stime base, personalizzabili
-      const dict = {
-        pizza: 300, piadina: 130, hamburger: 200, panino: 120, uovo: 60, mela: 150, banana: 120, fetta: 30, biscotto: 12
-      };
-      const key = food.trim().toLowerCase();
-      for (const k in dict) if (key.includes(k)) return q * dict[k];
-      return q * 100; // default unit
-    }
-    if (type === 'teaspoon') return q * 5;
-    if (type === 'tablespoon') return q * 15;
-    return q;
-  };
+
 
   const handleAddMeal = async () => {
     if (!meal.trim() || !quantity || isNaN(quantity) || quantity <= 0) {
@@ -153,23 +138,22 @@ const App = () => {
     setLoading(true);
     try {
       let data;
-      const grams = quantityToGrams(meal, quantityType, quantity);
-      const existing = findExistingNutrients(meal);
+      const existing = findExistingNutrients(meal, quantityType, quantity);
 
       if (existing) {
         data = {
-          food: existing.food, calories: existing.calPerG * grams, protein: existing.proPerG * grams, carbs: existing.choPerG * grams, fat: existing.fatPerG * grams
+          food: existing.food, calories: existing.calories, protein: existing.protein, carbs: existing.carbs, fat: existing.fat
         };
       } else {
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: meal.trim(), grams })
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: meal.trim(), quantity: parseFloat(quantity), quantityType })
         });
         if (!response.ok) throw new Error(`Errore API: ${response.status}`);
         data = await response.json();
       }
       
       const newDish = {
-        id: Date.now() + Math.random(), food: data.food || meal.trim(), grams, quantityType, quantity: parseFloat(quantity), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0,
+        id: Date.now() + Math.random(), food: data.food || meal.trim(), grams: Number(data.grams) || 0, quantityType, quantity: parseFloat(quantity), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0,
       };
 
       if (targetCardId) {
@@ -203,8 +187,8 @@ const App = () => {
   };
 
   const handleAddDishFromModal = async () => {
-    if (!modalMeal.trim() || !modalGrams || isNaN(modalGrams) || modalGrams <= 0) {
-      alert("Inserisci un cibo valido e una quantità in grammi positiva!"); return;
+    if (!modalMeal.trim() || !modalQuantity || isNaN(modalQuantity) || modalQuantity <= 0) {
+      alert("Inserisci un cibo valido e una quantità positiva!"); return;
     }
     if (selectedDate > getTodayDate()) {
       alert("Non puoi aggiungere pasti a giorni futuri!"); return;
@@ -213,14 +197,13 @@ const App = () => {
     setModalLoading(true);
     try {
       let data;
-      const existing = findExistingNutrients(modalMeal);
+      const existing = findExistingNutrients(modalMeal, modalQuantityType, modalQuantity);
 
       if (existing) {
-        const g = parseFloat(modalGrams);
-        data = { food: existing.food, calories: existing.calPerG * g, protein: existing.proPerG * g, carbs: existing.choPerG * g, fat: existing.fatPerG * g };
+        data = { food: existing.food, calories: existing.calories, protein: existing.protein, carbs: existing.carbs, fat: existing.fat };
       } else {
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: modalMeal.trim(), grams: parseFloat(modalGrams) })
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: modalMeal.trim(), quantity: parseFloat(modalQuantity), quantityType: modalQuantityType })
         });
         if (!response.ok) throw new Error(`Errore API: ${response.status}`);
         data = await response.json();
@@ -231,10 +214,10 @@ const App = () => {
       
       if (editingDishId) {
         updatedDishes = targetCard.dishes.map(d => d.id === editingDishId ? {
-            ...d, food: data.food || modalMeal.trim(), grams: parseFloat(modalGrams), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0,
+            ...d, food: data.food || modalMeal.trim(), grams: Number(data.grams) || 0, quantityType: modalQuantityType, quantity: parseFloat(modalQuantity), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0,
           } : d);
       } else {
-        const newDish = { id: Date.now() + Math.random(), food: data.food || modalMeal.trim(), grams: parseFloat(modalGrams), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0, };
+        const newDish = { id: Date.now() + Math.random(), food: data.food || modalMeal.trim(), grams: Number(data.grams) || 0, quantityType: modalQuantityType, quantity: parseFloat(modalQuantity), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0, };
         updatedDishes = [...targetCard.dishes, newDish];
       }
 
@@ -262,15 +245,15 @@ const App = () => {
   };
 
   const handleAddAnotherDish = (cardId, entryCategory) => {
-    setModalCardId(cardId); setModalCardCategory(entryCategory); setModalMeal(''); setModalGrams(''); setEditingDishId(null); setShowDishModal(true);
+    setModalCardId(cardId); setModalCardCategory(entryCategory); setModalMeal(''); setModalQuantity(''); setModalQuantityType('grams'); setEditingDishId(null); setShowDishModal(true);
   };
 
   const handleEditDish = (cardId, dish) => {
-    setModalCardId(cardId); setModalMeal(dish.food); setModalGrams(dish.grams.toString()); setEditingDishId(dish.id); setShowDishModal(true);
+    setModalCardId(cardId); setModalMeal(dish.food); setModalQuantity(dish.quantity.toString()); setModalQuantityType(dish.quantityType); setEditingDishId(dish.id); setShowDishModal(true);
   };
 
   const closeModal = () => {
-    setShowDishModal(false); setModalCardId(null); setModalCardCategory(''); setModalMeal(''); setModalGrams(''); setEditingDishId(null); setModalLoading(false);
+    setShowDishModal(false); setModalCardId(null); setModalCardCategory(''); setModalMeal(''); setModalQuantity(''); setModalQuantityType('grams'); setEditingDishId(null); setModalLoading(false);
   };
 
   const handleRemoveCard = async (cardId) => {
@@ -574,7 +557,7 @@ const App = () => {
                                 <div className="flex items-center gap-2">
                                   <p className="text-sm text-white font-bold">{dish.food}</p>
                                   <span className="text-[10px] text-gray-500 font-bold bg-slate-900 px-2 py-0.5 rounded-md uppercase tracking-tighter">
-                                    {dish.grams}g
+                                    {dish.quantity}{dish.quantityType === 'grams' ? 'g' : dish.quantityType === 'unit' ? 'unità' : dish.quantityType === 'teaspoon' ? 'cucchiaino' : 'cucchiaio'}{dish.quantityType !== 'grams' ? ` (${dish.grams}g)` : ''}
                                   </span>
                                 </div>
                                 <div className="flex gap-3 mt-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-tighter">
@@ -624,12 +607,23 @@ const App = () => {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-violet-400 uppercase mb-2 block">Quantità (grammi)</label>
-                <input 
-                  className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white outline-none focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 transition-all"
-                  type="number" placeholder="Es: 150" 
-                  value={modalGrams} onChange={(e) => setModalGrams(e.target.value)}
-                />
+                <label className="text-xs font-bold text-violet-400 uppercase mb-2 block">Quantità</label>
+                <div className="flex gap-2">
+                  <input 
+                    className="flex-1 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white outline-none focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 transition-all"
+                    type="number" min="0" step="any" placeholder="Es: 150" 
+                    value={modalQuantity} onChange={(e) => setModalQuantity(e.target.value)}
+                  />
+                  <select
+                    className="px-3 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white outline-none focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 transition-all"
+                    value={modalQuantityType} onChange={(e) => setModalQuantityType(e.target.value)}
+                  >
+                    <option value="grams">g</option>
+                    <option value="unit">unità</option>
+                    <option value="teaspoon">cucchiaino</option>
+                    <option value="tablespoon">cucchiaio</option>
+                  </select>
+                </div>
               </div>
             </div>
 
