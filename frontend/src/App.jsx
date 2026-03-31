@@ -40,9 +40,23 @@ const App = () => {
   // --- LOGICA DI MEMORIA: Cerca se il piatto è già stato inserito in passato ---
   const findExistingNutrients = (foodName, quantityType, quantity) => {
     const normalizedSearch = foodName.trim().toLowerCase();
+    const quantityNum = parseFloat(quantity);
+    console.log('findExistingNutrients called with:', { foodName, quantityType, quantity: quantityNum });
     for (const log of logs) {
-      const found = log.dishes.find(d => d.food.toLowerCase() === normalizedSearch && d.quantityType === quantityType && d.quantity === parseFloat(quantity));
+      const found = log.dishes.find(d => {
+        const dQuantityNum = parseFloat(d.quantity);
+        const match = d.food.toLowerCase() === normalizedSearch && d.quantityType === quantityType && dQuantityNum === quantityNum;
+        if (match) console.log('Found matching dish:', d);
+        return match;
+      });
       if (found) {
+        console.log('Returning existing nutrients:', {
+          food: found.food,
+          calories: found.calories,
+          protein: found.protein,
+          carbs: found.carbs,
+          fat: found.fat
+        });
         return {
           food: found.food,
           calories: found.calories,
@@ -52,6 +66,7 @@ const App = () => {
         };
       }
     }
+    console.log('No existing nutrients found');
     return null;
   };
 
@@ -139,17 +154,22 @@ const App = () => {
     try {
       let data;
       const existing = findExistingNutrients(meal, quantityType, quantity);
+      console.log('Searching for existing nutrients:', { meal, quantityType, quantity, existing });
 
-      if (existing) {
+      if (existing && existing.calories > 0) {
         data = {
           food: existing.food, calories: existing.calories, protein: existing.protein, carbs: existing.carbs, fat: existing.fat
         };
+        console.log('Using cached data:', data);
       } else {
+        if (existing) console.log('Cached data has zero calories, calling API');
+        console.log('Calling API for:', { meal: meal.trim(), quantity: parseFloat(quantity), quantityType });
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: meal.trim(), quantity: parseFloat(quantity), quantityType })
         });
         if (!response.ok) throw new Error(`Errore API: ${response.status}`);
         data = await response.json();
+        console.log('API response:', data);
       }
       
       const newDish = {
@@ -199,9 +219,10 @@ const App = () => {
       let data;
       const existing = findExistingNutrients(modalMeal, modalQuantityType, modalQuantity);
 
-      if (existing) {
+      if (existing && existing.calories > 0) {
         data = { food: existing.food, calories: existing.calories, protein: existing.protein, carbs: existing.carbs, fat: existing.fat };
       } else {
+        if (existing) console.log('Cached data has zero calories, calling API for modal');
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: modalMeal.trim(), quantity: parseFloat(modalQuantity), quantityType: modalQuantityType })
         });
