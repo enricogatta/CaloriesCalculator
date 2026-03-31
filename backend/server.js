@@ -12,7 +12,7 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2
  
 app.post('/api/analyze', async (req, res) => {
     const { meal, quantity, quantityType } = req.body;
-    console.log(`--- Richiesta reale per: ${quantity} ${quantityType} di ${meal} ---`);
+    console.log(`--- Richiesta ricevuta: ${quantity} ${quantityType} di ${meal} ---`);
  
     // Determina la descrizione della quantità
     let quantityDesc;
@@ -73,6 +73,7 @@ app.post('/api/analyze', async (req, res) => {
         const finalData = JSON.parse(cleanJsonText);
  
         console.log("Risposta ottenuta con successo:", finalData);
+        console.log(`--- Risposta inviata: ${JSON.stringify(finalData)} ---`);
         res.json(finalData);
  
     } catch (error) {
