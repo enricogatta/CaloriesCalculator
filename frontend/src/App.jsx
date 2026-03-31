@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient'; // Importazione del client Supabase
+import Sidebar from './components/Layout/Sidebar';
+import DayCard from './components/Calculator/DayCard';
+import DishModal from './components/Modals/DishModal';
+import EditableStatCard from './components/UI/EditableStatCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -41,22 +45,12 @@ const App = () => {
   const findExistingNutrients = (foodName, quantityType, quantity) => {
     const normalizedSearch = foodName.trim().toLowerCase();
     const quantityNum = parseFloat(quantity);
-    console.log('findExistingNutrients called with:', { foodName, quantityType, quantity: quantityNum });
     for (const log of logs) {
       const found = log.dishes.find(d => {
         const dQuantityNum = parseFloat(d.quantity);
-        const match = d.food.toLowerCase() === normalizedSearch && d.quantityType === quantityType && dQuantityNum === quantityNum;
-        if (match) console.log('Found matching dish:', d);
-        return match;
+        return d.food.toLowerCase() === normalizedSearch && d.quantityType === quantityType && dQuantityNum === quantityNum;
       });
       if (found) {
-        console.log('Returning existing nutrients:', {
-          food: found.food,
-          calories: found.calories,
-          protein: found.protein,
-          carbs: found.carbs,
-          fat: found.fat
-        });
         return {
           food: found.food,
           calories: found.calories,
@@ -66,7 +60,6 @@ const App = () => {
         };
       }
     }
-    console.log('No existing nutrients found');
     return null;
   };
 
@@ -154,22 +147,17 @@ const App = () => {
     try {
       let data;
       const existing = findExistingNutrients(meal, quantityType, quantity);
-      console.log('Searching for existing nutrients:', { meal, quantityType, quantity, existing });
 
       if (existing && existing.calories > 0) {
         data = {
           food: existing.food, calories: existing.calories, protein: existing.protein, carbs: existing.carbs, fat: existing.fat
         };
-        console.log('Using cached data:', data);
       } else {
-        if (existing) console.log('Cached data has zero calories, calling API');
-        console.log('Calling API for:', { meal: meal.trim(), quantity: parseFloat(quantity), quantityType });
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: meal.trim(), quantity: parseFloat(quantity), quantityType })
         });
         if (!response.ok) throw new Error(`Errore API: ${response.status}`);
         data = await response.json();
-        console.log('API response:', data);
       }
       
       const newDish = {
@@ -222,7 +210,6 @@ const App = () => {
       if (existing && existing.calories > 0) {
         data = { food: existing.food, calories: existing.calories, protein: existing.protein, carbs: existing.carbs, fat: existing.fat };
       } else {
-        if (existing) console.log('Cached data has zero calories, calling API for modal');
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: modalMeal.trim(), quantity: parseFloat(modalQuantity), quantityType: modalQuantityType })
         });
@@ -335,32 +322,12 @@ const App = () => {
       </button>
 
       {/* SIDEBAR LATERALE */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex animate-in fade-in duration-200" onClick={() => setIsSidebarOpen(false)}>
-          <div 
-            className="w-72 bg-slate-950 border-r border-violet-700 border-opacity-50 h-full p-6 flex flex-col gap-4 shadow-2xl animate-in slide-in-from-left duration-300"
-            onClick={e => e.stopPropagation()} 
-          >
-            <div className="flex justify-between items-center mb-8 mt-2">
-              <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600">Menu</h2>
-              <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white text-2xl font-bold">✕</button>
-            </div>
-            
-            <button 
-              onClick={() => { setCurrentView('calculator'); setIsSidebarOpen(false); }}
-              className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${currentView === 'calculator' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <span className="text-xl">🍽️</span> Calories Calculator
-            </button>
-            <button 
-              onClick={() => { setCurrentView('goals'); setIsSidebarOpen(false); }}
-              className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${currentView === 'goals' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <span className="text-xl">🎯</span> Miei Obiettivi
-            </button>
-          </div>
-        </div>
-      )}
+      <Sidebar
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+      />
 
       {/* CONTENITORE PRINCIPALE */}
       <div className="relative z-10 min-h-screen p-2 pt-16 md:p-8 md:pt-8 font-sans">
@@ -407,203 +374,31 @@ const App = () => {
           ) : (
             /* --- PAGINA PRINCIPALE: CALORIES CALCULATOR --- */
             <div className="animate-in fade-in duration-500">
-              {/* Calendario Orizzontale */}
-              <div className="mb-6 flex items-center justify-center gap-2 xs:gap-3 sm:gap-4">
-                <button 
-                  onClick={() => setSelectedDate(new Date(new Date(selectedDate).getTime() - 86400000).toISOString().split('T')[0])}
-                  className="px-4 py-2 text-violet-400 hover:text-white transition-colors text-xl font-bold"
-                >←</button>
-
-                <div className="flex gap-1 xs:gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-[220px] xs:max-w-[280px] md:max-w-3xl">
-                  {Array.from({ length: 30 }, (_, i) => {
-                    const date = new Date(new Date().getTime() - (14 - i) * 86400000).toISOString().split('T')[0];
-                    const isSelected = date === selectedDate;
-                    const isToday = date === getTodayDate();
-                    
-                    return (
-                      <button
-                        key={date}
-                        ref={isToday ? todayButtonRef : null}
-                        onClick={() => date <= getTodayDate() && setSelectedDate(date)}
-                        className={`
-                          px-4 py-3 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-300
-                          ${isSelected 
-                            ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg border-2 border-violet-400 scale-105' 
-                            : isToday
-                            ? 'border-2 border-cyan-400 text-cyan-400 bg-slate-800'
-                            : date > getTodayDate()
-                            ? 'opacity-30 cursor-not-allowed bg-slate-900 text-slate-600'
-                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                          }
-                        `}
-                      >
-                        {new Date(date).toLocaleDateString('it-IT', { month: 'short', day: 'numeric' })}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button 
-                  onClick={() => {
-                    const next = new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0];
-                    if (next <= getTodayDate()) setSelectedDate(next);
-                  }}
-                  className={`px-4 py-2 text-xl font-bold transition-colors ${new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0] > getTodayDate() ? 'text-gray-700 cursor-not-allowed' : 'text-violet-400 hover:text-white'}`}
-                >→</button>
-              </div>
-
-              {/* DASHBOARD STATS CON PERCENTUALI */}
-              <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-4 gap-2 xs:gap-3 mb-6 xs:mb-8">
-                <StatCard 
-                  label="Calorie" value={dailyTotals.calories.toFixed(0)} unit="kcal" icon="🔥" gradient="from-orange-500 to-red-600" 
-                  percentage={goals.calories > 0 ? Math.round((dailyTotals.calories / goals.calories) * 100) : 0}
-                />
-                <StatCard 
-                  label="Proteine" value={dailyTotals.protein.toFixed(1)} unit="g" icon="🥩" gradient="from-blue-500 to-cyan-600" 
-                  percentage={goals.protein > 0 ? Math.round((dailyTotals.protein / goals.protein) * 100) : 0}
-                />
-                <StatCard 
-                  label="Carboidrati" value={dailyTotals.carbs.toFixed(1)} unit="g" icon="🌾" gradient="from-yellow-400 to-orange-500" 
-                  percentage={goals.carbs > 0 ? Math.round((dailyTotals.carbs / goals.carbs) * 100) : 0}
-                />
-                <StatCard 
-                  label="Grassi" value={dailyTotals.fat.toFixed(1)} unit="g" icon="🥑" gradient="from-green-400 to-emerald-600" 
-                  percentage={goals.fat > 0 ? Math.round((dailyTotals.fat / goals.fat) * 100) : 0}
-                />
-              </div>
-
-              {/* INPUT FORM */}
-              <div className={`
-                bg-slate-900 rounded-2xl border border-violet-700 border-opacity-30 p-3 xs:p-4 sm:p-8 mb-6 xs:mb-8 backdrop-blur-sm hover:border-opacity-70 transition-all duration-300
-                ${selectedDate > getTodayDate() ? 'opacity-50 pointer-events-none grayscale' : ''}
-              `}>
-                <h2 className="text-xl xs:text-2xl font-bold mb-4 xs:mb-6 text-white flex items-center gap-2">
-                  <span className="text-2xl xs:text-3xl">📝</span> Aggiungi un pasto
-                </h2>
-                <div className="grid grid-cols-1 xs:grid-cols-1 md:grid-cols-12 gap-2 xs:gap-3">
-                  <select 
-                    className="md:col-span-3 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all cursor-pointer"
-                    value={category} onChange={(e) => setCategory(e.target.value)}
-                  >
-                    {['Colazione', 'Pranzo', 'Cena', 'Spuntino'].map(c => <option key={c} className="bg-slate-900">{c}</option>)}
-                  </select>
-                  <input 
-                    ref={mealInputRef}
-                    className="md:col-span-5 px-3 py-2 xs:px-4 xs:py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
-                    type="text" placeholder="Es: Pasta al pesto" 
-                    value={meal} onChange={(e) => setMeal(e.target.value)}
-                  />
-                  <div className="md:col-span-2 flex gap-1 items-center">
-                    <input 
-                      className="w-20 px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
-                      type="number" min="0" step="any" placeholder="Quantità" 
-                      value={quantity} onChange={e => setQuantity(e.target.value)}
-                    />
-                    <select
-                      className="px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all text-xs xs:text-sm"
-                      value={quantityType} onChange={e => setQuantityType(e.target.value)}
-                    >
-                      <option value="grams">g</option>
-                      <option value="unit">unità</option>
-                      <option value="teaspoon">cucchiaino</option>
-                      <option value="tablespoon">cucchiaio</option>
-                    </select>
-                  </div>
-                  <button
-                    onClick={handleAddMeal} disabled={loading}
-                    className={`md:col-span-2 px-3 py-2 xs:px-4 xs:py-3 rounded-xl font-bold text-white transition-all active:scale-95 transform text-sm xs:text-base ${
-                      loading ? 'bg-slate-700 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:shadow-lg hover:shadow-violet-500/50 hover:-translate-y-0.5'
-                    }`}
-                  >
-                    {loading ? '⏳' : '✚ Aggiungi'}
-                  </button>
-                </div>
-              </div>
-
-              {/* LISTA PASTI */}
-              <div>
-                <div className="flex justify-between items-center mb-6 px-2">
-                  <h3 className="font-bold text-2xl text-white flex items-center gap-2">
-                    <span className="text-3xl">📋</span> Pasti della giornata
-                  </h3>
-                  {dailyLogs.length > 0 && (
-                    <button onClick={clearLogs} className="text-sm text-gray-400 hover:text-pink-400 transition-colors font-semibold hover:underline">
-                      🗑️ Svuota tutto
-                    </button>
-                  )}
-                </div>
-                
-                {dailyLogs.length === 0 && (
-                  <div className="text-center py-20 bg-slate-900 bg-opacity-20 rounded-3xl border-2 border-dashed border-slate-800">
-                    <p className="text-6xl mb-6">🍽️</p>
-                    <p className="text-gray-400 text-lg">Nessun pasto registrato per questo giorno.</p>
-                    <p className="text-gray-500 text-sm mt-2 italic">Aggiungi qualcosa di gustoso!</p>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  {dailyLogs.map((log) => {
-                    const cardTotals = log.dishes.reduce((cAcc, dish) => ({
-                      calories: cAcc.calories + Number(dish.calories), protein: cAcc.protein + Number(dish.protein), carbs: cAcc.carbs + Number(dish.carbs), fat: cAcc.fat + Number(dish.fat),
-                    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-
-                    return (
-                      <div key={log.id} className="bg-slate-900 border border-violet-700 border-opacity-30 p-6 rounded-2xl hover:border-opacity-70 transition-all duration-300 group hover:shadow-lg hover:shadow-violet-500/20 hover:-translate-y-0.5">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <span className="text-xs font-bold uppercase tracking-wider text-violet-300 bg-slate-800 px-3 py-1.5 rounded-full border border-violet-700 border-opacity-30">
-                              {log.category}
-                            </span>
-                            <div className="flex flex-wrap gap-2 mt-3">
-                              <NutrientBadge label="kcal" value={cardTotals.calories.toFixed(0)} color="text-orange-400" />
-                              <NutrientBadge label="PRO" value={cardTotals.protein.toFixed(1)} color="text-blue-400" />
-                              <NutrientBadge label="CHO" value={cardTotals.carbs.toFixed(1)} color="text-yellow-400" />
-                              <NutrientBadge label="FAT" value={cardTotals.fat.toFixed(1)} color="text-green-400" />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => handleRemoveCard(log.id)} className="text-xs text-red-400 hover:text-red-500 font-semibold transition-colors opacity-60 hover:opacity-100">
-                              Elimina pasto
-                            </button>
-                            <button onClick={() => handleAddAnotherDish(log.id, log.category)} className="text-xs text-violet-400 hover:text-violet-200 font-semibold transition-colors bg-slate-800 px-3 py-1.5 rounded-lg border border-violet-700 border-opacity-30">
-                              + Nuovo piatto
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 mt-4">
-                          {log.dishes.map((dish) => (
-                            <div key={dish.id} className="bg-slate-800 rounded-xl p-4 flex justify-between items-center border border-violet-700 border-opacity-10 hover:border-opacity-40 transition-all group/item">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm text-white font-bold">{dish.food}</p>
-                                  <span className="text-[10px] text-gray-500 font-bold bg-slate-900 px-2 py-0.5 rounded-md uppercase tracking-tighter">
-                                    {dish.quantity}{dish.quantityType === 'grams' ? 'g' : dish.quantityType === 'unit' ? 'unità' : dish.quantityType === 'teaspoon' ? 'cucchiaino' : 'cucchiaio'}{dish.quantityType !== 'grams' ? ` (${dish.grams}g)` : ''}
-                                  </span>
-                                </div>
-                                <div className="flex gap-3 mt-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-tighter">
-                                  <span>🔥 {dish.calories.toFixed(0)} kcal</span>
-                                  <span>🥩 {dish.protein.toFixed(1)}g pro</span>
-                                  <span>🌾 {dish.carbs.toFixed(1)}g cho</span>
-                                  <span>🥑 {dish.fat.toFixed(1)}g fat</span>
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <button onClick={() => handleEditDish(log.id, dish)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-violet-600 text-white transition-all transform active:scale-90" title="Modifica">
-                                  ✏️
-                                </button>
-                                <button onClick={() => handleRemoveDish(log.id, dish.id)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-red-500 text-white transition-all transform active:scale-90">
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <DayCard
+                selectedDate={selectedDate}
+                setSelectedDate={setSelectedDate}
+                getTodayDate={getTodayDate}
+                dailyTotals={dailyTotals}
+                goals={goals}
+                category={category}
+                setCategory={setCategory}
+                meal={meal}
+                setMeal={setMeal}
+                quantity={quantity}
+                setQuantity={setQuantity}
+                quantityType={quantityType}
+                setQuantityType={setQuantityType}
+                handleAddMeal={handleAddMeal}
+                loading={loading}
+                mealInputRef={mealInputRef}
+                dailyLogs={dailyLogs}
+                clearLogs={clearLogs}
+                onEditDish={handleEditDish}
+                onDeleteDish={handleRemoveDish}
+                onDeleteMeal={handleRemoveCard}
+                onAddDish={handleAddAnotherDish}
+                todayButtonRef={todayButtonRef}
+              />
             </div>
           )}
         </div>
@@ -669,61 +464,5 @@ const App = () => {
 };
 
 // --- COMPONENTI ACCESSORI AGGIORNATI ---
-
-// Aggiunta la barra della percentuale
-const StatCard = ({ label, value, unit, icon, gradient, percentage }) => (
-  <div className={`bg-gradient-to-br ${gradient} p-6 rounded-2xl text-white shadow-lg border border-white border-opacity-10 group hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between`}>
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs uppercase font-bold opacity-90 tracking-wider">{label}</p>
-        <span className="text-2xl group-hover:scale-110 transition-transform">{icon}</span>
-      </div>
-      <div className="flex items-baseline gap-1">
-        <span className="text-3xl font-black">{value}</span>
-        <span className="text-xs font-semibold opacity-80">{unit}</span>
-      </div>
-    </div>
-    {percentage !== undefined && (
-      <div className="mt-4">
-        <div className="h-1.5 w-full bg-black bg-opacity-30 rounded-full overflow-hidden">
-          <div 
-            className={`h-full transition-all duration-500 ${percentage > 100 ? 'bg-red-400' : 'bg-white'}`} 
-            style={{ width: `${Math.min(percentage, 100)}%` }} 
-          />
-        </div>
-        <p className={`text-[10px] mt-1 font-bold text-right opacity-90 ${percentage > 100 ? 'text-red-300' : ''}`}>
-          {percentage}% {percentage > 100 ? '(Superato)' : ''}
-        </p>
-      </div>
-    )}
-  </div>
-);
-
-// Nuova card modificabile per la pagina obiettivi
-const EditableStatCard = ({ label, value, unit, icon, gradient, onChange, onBlur }) => (
-  <div className={`bg-gradient-to-br ${gradient} p-6 rounded-2xl text-white shadow-lg border border-white border-opacity-10`}>
-    <div className="flex items-center justify-between mb-4">
-      <p className="text-xs uppercase font-bold opacity-90 tracking-wider">{label}</p>
-      <span className="text-2xl">{icon}</span>
-    </div>
-    <div className="flex items-baseline gap-2 bg-black bg-opacity-20 p-2 rounded-xl border border-transparent focus-within:border-white focus-within:border-opacity-30 transition-all">
-      <input
-        type="number"
-        value={value}
-        onChange={onChange}
-        onBlur={onBlur} // Salva su database al click esterno
-        className="text-2xl font-black bg-transparent border-none outline-none w-full text-right"
-      />
-      <span className="text-sm font-semibold opacity-80">{unit}</span>
-    </div>
-  </div>
-);
-
-const NutrientBadge = ({ label, value, color }) => (
-  <div className="flex items-center gap-1.5 bg-slate-800 bg-opacity-50 px-2.5 py-1 rounded-md border border-slate-700 border-opacity-50">
-    <span className={`text-[10px] font-black ${color} uppercase tracking-tighter`}>{label}</span>
-    <span className="text-xs font-bold text-white">{value}</span>
-  </div>
-);
 
 export default App;
