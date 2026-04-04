@@ -1,3 +1,5 @@
+import React from 'react';
+
 const StatCard = ({ label, value, unit, icon, gradient, percentage }) => (
   <div className={`bg-gradient-to-br ${gradient} p-6 rounded-2xl text-white shadow-lg border border-white border-opacity-10 group hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between`}>
     <div>
@@ -26,4 +28,4 @@ const StatCard = ({ label, value, unit, icon, gradient, percentage }) => (
   </div>
 );
 
-export default StatCard;
+export default React.memo(StatCard);

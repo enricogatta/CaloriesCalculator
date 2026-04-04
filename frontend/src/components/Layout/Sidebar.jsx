@@ -1,3 +1,5 @@
+import React from 'react';
+
 const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, currentView, setCurrentView }) => (
   <>
     {isSidebarOpen && (
@@ -29,4 +31,4 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, currentView, setCurrentView 
   </>
 );
 
-export default Sidebar;
+export default React.memo(Sidebar);

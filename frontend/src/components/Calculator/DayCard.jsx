@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import StatCard from '../UI/StatCard';
 import MealSection from './MealSection';
 
@@ -38,7 +38,8 @@ const DayCard = ({
     return dates;
   };
 
-  const dates = generateDateRange();
+  const dates = useMemo(() => generateDateRange(), [selectedDate]);
+  const todayDate = getTodayDate();
 
   return (
     <div>
@@ -52,26 +53,31 @@ const DayCard = ({
         <div className="flex gap-1 xs:gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-[220px] xs:max-w-[280px] md:max-w-3xl">
           {dates.map((date) => {
             const isSelected = selectedDate === date;
-            const isToday = date === getTodayDate();
+            const isToday = date === todayDate;
+            const shortWeekday = new Date(date)
+              .toLocaleDateString('it-IT', { weekday: 'short' })
+              .replace('.', '')
+              .toLowerCase();
             return (
               <button
                 key={date}
                 ref={isToday ? todayButtonRef : null}
-                onClick={() => date <= getTodayDate() && setSelectedDate(date)}
-                disabled={date > getTodayDate()}
+                onClick={() => date <= todayDate && setSelectedDate(date)}
+                disabled={date > todayDate}
                 className={`
-                  px-4 py-3 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-300
+                  px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-300 flex flex-col items-center leading-tight
                   ${isSelected
                     ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg border-2 border-violet-400 scale-105'
                     : isToday
                     ? 'border-2 border-cyan-400 text-cyan-400 bg-slate-800'
-                    : date > getTodayDate()
+                    : date > todayDate
                     ? 'opacity-30 cursor-not-allowed bg-slate-900 text-slate-600'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                   }
                 `}
               >
-                {new Date(date).toLocaleDateString('it-IT', { month: 'short', day: 'numeric' })}
+                <span>{new Date(date).toLocaleDateString('it-IT', { month: 'short', day: 'numeric' })}</span>
+                <span className={`text-[10px] mt-1 ${isSelected ? 'text-violet-100' : 'opacity-80'}`}>{shortWeekday}</span>
               </button>
             );
           })}
@@ -80,9 +86,9 @@ const DayCard = ({
         <button
           onClick={() => {
             const next = new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0];
-            if (next <= getTodayDate()) setSelectedDate(next);
+            if (next <= todayDate) setSelectedDate(next);
           }}
-          className={`px-4 py-2 text-xl font-bold transition-colors ${new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0] > getTodayDate() ? 'text-gray-700 cursor-not-allowed' : 'text-violet-400 hover:text-white'}`}
+          className={`px-4 py-2 text-xl font-bold transition-colors ${new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0] > todayDate ? 'text-gray-700 cursor-not-allowed' : 'text-violet-400 hover:text-white'}`}
         >→</button>
       </div>
 
@@ -109,7 +115,7 @@ const DayCard = ({
       {/* INPUT FORM */}
       <div className={`
         bg-slate-900 rounded-2xl border border-violet-700 border-opacity-30 p-3 xs:p-4 sm:p-8 mb-6 xs:mb-8 backdrop-blur-sm hover:border-opacity-70 transition-all duration-300
-        ${selectedDate > getTodayDate() ? 'opacity-50 pointer-events-none grayscale' : ''}
+        ${selectedDate > todayDate ? 'opacity-50 pointer-events-none grayscale' : ''}
       `}>
         <h2 className="text-xl xs:text-2xl font-bold mb-4 xs:mb-6 text-white flex items-center gap-2">
           <span className="text-2xl xs:text-3xl">📝</span> Aggiungi un pasto
@@ -194,4 +200,4 @@ const DayCard = ({
   );
 };
 
-export default DayCard;
+export default React.memo(DayCard);

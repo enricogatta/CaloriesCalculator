@@ -1,3 +1,5 @@
+import React from 'react';
+
 // Nuova card modificabile per la pagina obiettivi
 const EditableStatCard = ({ label, value, unit, icon, gradient, onChange, onBlur }) => (
   <div className={`bg-gradient-to-br ${gradient} p-6 rounded-2xl text-white shadow-lg border border-white border-opacity-10`}>
@@ -18,4 +20,4 @@ const EditableStatCard = ({ label, value, unit, icon, gradient, onChange, onBlur
   </div>
 );
 
-export default EditableStatCard;
+export default React.memo(EditableStatCard);

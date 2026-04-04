@@ -1,3 +1,5 @@
+import React from 'react';
+
 const DishModal = ({
   showDishModal,
   closeModal,
@@ -71,4 +73,4 @@ const DishModal = ({
   </>
 );
 
-export default DishModal;
+export default React.memo(DishModal);

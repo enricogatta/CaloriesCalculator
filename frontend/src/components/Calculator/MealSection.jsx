@@ -1,9 +1,10 @@
+import React, { useMemo } from 'react';
 import NutrientBadge from '../UI/NutrientBadge';
 
 const MealSection = ({ id, category, dishes, onEditDish, onDeleteDish, onDeleteMeal, onAddDish }) => {
-  const cardTotals = dishes.reduce((cAcc, dish) => ({
-    calories: cAcc.calories + Number(dish.calories), protein: cAcc.protein + Number(dish.protein), carbs: cAcc.carbs + Number(dish.carbs), fat: cAcc.fat + Number(dish.fat),
-  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  const cardTotals = useMemo(() => dishes.reduce((cAcc, dish) => ({
+    calories: cAcc.calories + (Number(dish.calories) || 0), protein: cAcc.protein + (Number(dish.protein) || 0), carbs: cAcc.carbs + (Number(dish.carbs) || 0), fat: cAcc.fat + (Number(dish.fat) || 0),
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 }), [dishes]);
 
   return (
     <div className="bg-slate-900 border border-violet-700 border-opacity-30 p-6 rounded-2xl hover:border-opacity-70 transition-all duration-300 group hover:shadow-lg hover:shadow-violet-500/20 hover:-translate-y-0.5">
@@ -61,4 +62,4 @@ const MealSection = ({ id, category, dishes, onEditDish, onDeleteDish, onDeleteM
   );
 };
 
-export default MealSection;
+export default React.memo(MealSection);
