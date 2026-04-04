@@ -4,6 +4,7 @@ import Sidebar from './components/Layout/Sidebar';
 import DayCard from './components/Calculator/DayCard';
 import DishModal from './components/Modals/DishModal';
 import EditableStatCard from './components/UI/EditableStatCard';
+import LoadingScreen from './components/UI/LoadingScreen';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -28,6 +29,8 @@ const App = () => {
   // --- NUOVI STATI PER MENU E OBIETTIVI ---
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState('calculator'); // 'calculator' o 'goals'
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [goals, setGoals] = useState({
     calories: 2000,
     protein: 150,
@@ -96,89 +99,116 @@ const App = () => {
     return null;
   }, [logs]);
 
-  // 1. CARICAMENTO DATI PASTI DA SUPABASE
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('meals')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.error('❌ Errore caricamento meals:', error);
-        } else {
-          setLogs(data || []);
-        }
-      } catch (err) {
-        console.error('❌ Eccezione durante caricamento:', err);
-      }
-    };
-    fetchLogs();
-  }, []);
-
-  // 2. CARICAMENTO OBIETTIVI DA SUPABASE
-  useEffect(() => {
-    const fetchGoals = async () => {
-      console.log('🔄 Caricamento goals...');
+  const fetchLogs = useCallback(async () => {
+    try {
       const { data, error } = await supabase
-        .from('goals')
+        .from('meals')
         .select('*')
-        .eq('id', 1)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Errore caricamento goals:', error);
-        console.error('Dettagli errore:', error.message, error.details, error.hint);
-        console.error('Codice errore:', error.code);
-        // Fallback ai valori di default
-        setGoals({
-          calories: 2000,
-          protein: 150,
-          carbs: 250,
-          fat: 70
-        });
-      } else if (data) {
-        console.log('✅ Goals caricati:', data);
-        setGoals({
-          calories: data?.calories || 2000,
-          protein: data?.protein || 150,
-          carbs: data?.carbs || 250,
-          fat: data?.fat || 70
-        });
+        console.error('❌ Errore caricamento meals:', error);
       } else {
-        // Nessuna riga presente: creiamo la riga singleton con id=1
-        const defaultGoals = { id: 1, calories: 2000, protein: 150, carbs: 250, fat: 70 };
-        const { error: insertError } = await supabase
-          .from('goals')
-          .upsert(defaultGoals, { onConflict: 'id' });
-
-        if (insertError) {
-          console.error('❌ Errore inizializzazione goals:', insertError);
-        }
-
-        setGoals({
-          calories: defaultGoals.calories,
-          protein: defaultGoals.protein,
-          carbs: defaultGoals.carbs,
-          fat: defaultGoals.fat
-        });
+        setLogs(data || []);
       }
-    };
-    fetchGoals();
+    } catch (err) {
+      console.error('❌ Eccezione durante caricamento:', err);
+    }
   }, []);
 
-  useEffect(() => {
-    if (todayButtonRef.current && currentView === 'calculator') {
-      setTimeout(() => {
-        todayButtonRef.current?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'center'
-        });
-      }, 100);
+  const fetchGoals = useCallback(async () => {
+    console.log('🔄 Caricamento goals...');
+    const { data, error } = await supabase
+      .from('goals')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ Errore caricamento goals:', error);
+      console.error('Dettagli errore:', error.message, error.details, error.hint);
+      console.error('Codice errore:', error.code);
+      // Fallback ai valori di default
+      setGoals({
+        calories: 2000,
+        protein: 150,
+        carbs: 250,
+        fat: 70
+      });
+    } else if (data) {
+      console.log('✅ Goals caricati:', data);
+      setGoals({
+        calories: data?.calories || 2000,
+        protein: data?.protein || 150,
+        carbs: data?.carbs || 250,
+        fat: data?.fat || 70
+      });
+    } else {
+      // Nessuna riga presente: creiamo la riga singleton con id=1
+      const defaultGoals = { id: 1, calories: 2000, protein: 150, carbs: 250, fat: 70 };
+      const { error: insertError } = await supabase
+        .from('goals')
+        .upsert(defaultGoals, { onConflict: 'id' });
+
+      if (insertError) {
+        console.error('❌ Errore inizializzazione goals:', insertError);
+      }
+
+      setGoals({
+        calories: defaultGoals.calories,
+        protein: defaultGoals.protein,
+        carbs: defaultGoals.carbs,
+        fat: defaultGoals.fat
+      });
     }
-  }, [currentView]);
+  }, []);
+
+  // 1. CARICAMENTO DATI PASTI DA SUPABASE
+  useEffect(() => {
+    let isMounted = true;
+
+    const bootstrapApp = async () => {
+      try {
+        await Promise.all([fetchLogs(), fetchGoals()]);
+      } finally {
+        if (isMounted) {
+          setInitialLoading(false);
+        }
+      }
+    };
+
+    bootstrapApp();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchLogs, fetchGoals]);
+
+  const handleSyncWithSupabase = useCallback(async () => {
+    setIsSidebarOpen(false);
+    setSyncLoading(true);
+    try {
+      await Promise.all([fetchLogs(), fetchGoals()]);
+    } finally {
+      setSyncLoading(false);
+    }
+  }, [fetchLogs, fetchGoals]);
+
+  useEffect(() => {
+    if (initialLoading || syncLoading || currentView !== 'calculator') {
+      return;
+    }
+
+    const scrollTimer = setTimeout(() => {
+      todayButtonRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center'
+      });
+    }, 120);
+
+    return () => clearTimeout(scrollTimer);
+  }, [initialLoading, syncLoading, currentView]);
 
   // --- FUNZIONI PER GESTIRE GLI OBIETTIVI ---
   const handleUpdateGoal = useCallback((macro, value) => {
@@ -480,6 +510,14 @@ const App = () => {
     };
   }, { calories: 0, protein: 0, carbs: 0, fat: 0 }), [dailyLogs]);
 
+  if (initialLoading) {
+    return <LoadingScreen message="Caricamento dati in corso..." />;
+  }
+
+  if (syncLoading) {
+    return <LoadingScreen message="Sincronizzazione in corso..." />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 relative overflow-hidden text-white">
       {/* Animated background elements */}
@@ -508,6 +546,8 @@ const App = () => {
         setIsSidebarOpen={setIsSidebarOpen}
         currentView={currentView}
         setCurrentView={setCurrentView}
+        onSync={handleSyncWithSupabase}
+        syncLoading={syncLoading}
       />
 
       {/* CONTENITORE PRINCIPALE */}
