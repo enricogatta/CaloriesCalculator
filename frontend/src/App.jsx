@@ -1,18 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from './supabaseClient'; // Importazione del client Supabase
+import Sidebar from './components/Layout/Sidebar';
+import DayCard from './components/Calculator/DayCard';
+import DishModal from './components/Modals/DishModal';
+import EditableStatCard from './components/UI/EditableStatCard';
+import LoadingScreen from './components/UI/LoadingScreen';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const App = () => {
   const [meal, setMeal] = useState('');
-  const [grams, setGrams] = useState('');
+  const [quantityType, setQuantityType] = useState('grams'); // 'grams', 'unit', 'teaspoon'
+  const [quantity, setQuantity] = useState('');
   const [category, setCategory] = useState('Colazione');
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [targetCardId, setTargetCardId] = useState(null);
   const [showDishModal, setShowDishModal] = useState(false);
   const [modalMeal, setModalMeal] = useState('');
-  const [modalGrams, setModalGrams] = useState('');
+  const [modalQuantityType, setModalQuantityType] = useState('grams');
+  const [modalQuantity, setModalQuantity] = useState('');
   const [modalCardId, setModalCardId] = useState(null);
   const [modalCardCategory, setModalCardCategory] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
@@ -22,6 +29,8 @@ const App = () => {
   // --- NUOVI STATI PER MENU E OBIETTIVI ---
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState('calculator'); // 'calculator' o 'goals'
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [goals, setGoals] = useState({
     calories: 2000,
     protein: 150,
@@ -32,98 +41,205 @@ const App = () => {
   const mealInputRef = React.useRef(null);
   const todayButtonRef = React.useRef(null);
 
-  const getTodayDate = () => new Date().toISOString().split('T')[0];
-  const dailyLogs = logs.filter(log => log.date === selectedDate);
+  const getTodayDate = useCallback(() => new Date().toISOString().split('T')[0], []);
+  const dailyLogs = useMemo(
+    () => logs.filter(log => log.date === selectedDate),
+    [logs, selectedDate]
+  );
 
-  // --- LOGICA DI MEMORIA: Cerca se il piatto è già stato inserito in passato ---
-  const findExistingNutrients = (foodName) => {
+  // Cerca un cibo già presente nei dati Supabase caricati e ricalcola i macro sulla nuova quantità.
+  const findExistingNutrients = useCallback((foodName, quantityType, quantity) => {
     const normalizedSearch = foodName.trim().toLowerCase();
+    const normalizedQuantityType = (quantityType || '').trim().toLowerCase();
+    const targetQuantity = Number(quantity);
+
+    if (!normalizedSearch || !Number.isFinite(targetQuantity) || targetQuantity <= 0) {
+      return null;
+    }
+
+    const round1 = (value) => Math.round(value * 10) / 10;
+
     for (const log of logs) {
-      const found = log.dishes.find(d => d.food.toLowerCase() === normalizedSearch);
-      if (found) {
+      const dishes = Array.isArray(log.dishes) ? log.dishes : [];
+
+      for (const dish of dishes) {
+        const dishFood = (dish.food || '').trim().toLowerCase();
+        const dishQuantityType = (dish.quantityType || '').trim().toLowerCase();
+
+        if (dishFood !== normalizedSearch || dishQuantityType !== normalizedQuantityType) {
+          continue;
+        }
+
+        const storedQuantity = Number(dish.quantity);
+        if (!Number.isFinite(storedQuantity) || storedQuantity <= 0) {
+          continue;
+        }
+
+        // Per robustezza usiamo i macro reali salvati nel record e ricaviamo i valori per 1 unità di quantityType.
+        const caloriesPerUnit = Number(dish.calories || 0) / storedQuantity;
+        const proteinPerUnit = Number(dish.protein || 0) / storedQuantity;
+        const carbsPerUnit = Number(dish.carbs || 0) / storedQuantity;
+        const fatPerUnit = Number(dish.fat || 0) / storedQuantity;
+
         return {
-          food: found.food,
-          calPerG: found.calories / found.grams,
-          proPerG: found.protein / found.grams,
-          choPerG: found.carbs / found.grams,
-          fatPerG: found.fat / found.grams
+          food: dish.food,
+          grams: normalizedQuantityType === 'grams' ? targetQuantity : Number(dish.grams) || 0,
+          calories: Math.round(caloriesPerUnit * targetQuantity),
+          protein: round1(proteinPerUnit * targetQuantity),
+          carbs: round1(carbsPerUnit * targetQuantity),
+          fat: round1(fatPerUnit * targetQuantity),
+          caloriesPerUnit,
+          proteinPerUnit,
+          carbsPerUnit,
+          fatPerUnit
         };
       }
     }
-    return null;
-  };
 
-  // 1. CARICAMENTO DATI PASTI DA SUPABASE
-  useEffect(() => {
-    const fetchLogs = async () => {
+    return null;
+  }, [logs]);
+
+  const fetchLogs = useCallback(async () => {
+    try {
       const { data, error } = await supabase
         .from('meals')
         .select('*')
         .order('created_at', { ascending: false });
-      
-      if (!error && data) setLogs(data);
-    };
-    fetchLogs();
+
+      if (error) {
+        console.error('❌ Errore caricamento meals:', error);
+      } else {
+        setLogs(data || []);
+      }
+    } catch (err) {
+      console.error('❌ Eccezione durante caricamento:', err);
+    }
   }, []);
 
-  // 2. CARICAMENTO OBIETTIVI DA SUPABASE
-  useEffect(() => {
-    const fetchGoals = async () => {
-      const { data, error } = await supabase
-        .from('goals')
-        .select('*')
-        .eq('id', 1)
-        .single();
+  const fetchGoals = useCallback(async () => {
+    console.log('🔄 Caricamento goals...');
+    const { data, error } = await supabase
+      .from('goals')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
 
-      if (data && !error) {
-        setGoals({
-          calories: data.calories,
-          protein: data.protein,
-          carbs: data.carbs,
-          fat: data.fat
-        });
+    if (error) {
+      console.error('❌ Errore caricamento goals:', error);
+      console.error('Dettagli errore:', error.message, error.details, error.hint);
+      console.error('Codice errore:', error.code);
+      // Fallback ai valori di default
+      setGoals({
+        calories: 2000,
+        protein: 150,
+        carbs: 250,
+        fat: 70
+      });
+    } else if (data) {
+      console.log('✅ Goals caricati:', data);
+      setGoals({
+        calories: data?.calories || 2000,
+        protein: data?.protein || 150,
+        carbs: data?.carbs || 250,
+        fat: data?.fat || 70
+      });
+    } else {
+      // Nessuna riga presente: creiamo la riga singleton con id=1
+      const defaultGoals = { id: 1, calories: 2000, protein: 150, carbs: 250, fat: 70 };
+      const { error: insertError } = await supabase
+        .from('goals')
+        .upsert(defaultGoals, { onConflict: 'id' });
+
+      if (insertError) {
+        console.error('❌ Errore inizializzazione goals:', insertError);
+      }
+
+      setGoals({
+        calories: defaultGoals.calories,
+        protein: defaultGoals.protein,
+        carbs: defaultGoals.carbs,
+        fat: defaultGoals.fat
+      });
+    }
+  }, []);
+
+  // 1. CARICAMENTO DATI PASTI DA SUPABASE
+  useEffect(() => {
+    let isMounted = true;
+
+    const bootstrapApp = async () => {
+      try {
+        await Promise.all([fetchLogs(), fetchGoals()]);
+      } finally {
+        if (isMounted) {
+          setInitialLoading(false);
+        }
       }
     };
-    fetchGoals();
-  }, []);
+
+    bootstrapApp();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchLogs, fetchGoals]);
+
+  const handleSyncWithSupabase = useCallback(async () => {
+    setIsSidebarOpen(false);
+    setSyncLoading(true);
+    try {
+      await Promise.all([fetchLogs(), fetchGoals()]);
+    } finally {
+      setSyncLoading(false);
+    }
+  }, [fetchLogs, fetchGoals]);
 
   useEffect(() => {
-    if (todayButtonRef.current && currentView === 'calculator') {
-      setTimeout(() => {
-        todayButtonRef.current?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'center'
-        });
-      }, 100);
+    if (initialLoading || syncLoading || currentView !== 'calculator') {
+      return;
     }
-  }, [currentView]);
+
+    const scrollTimer = setTimeout(() => {
+      todayButtonRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center'
+      });
+    }, 120);
+
+    return () => clearTimeout(scrollTimer);
+  }, [initialLoading, syncLoading, currentView]);
 
   // --- FUNZIONI PER GESTIRE GLI OBIETTIVI ---
-  const handleUpdateGoal = (macro, value) => {
+  const handleUpdateGoal = useCallback((macro, value) => {
     setGoals(prev => ({ ...prev, [macro]: Number(value) }));
-  };
+  }, []);
 
-  const saveGoalsToDB = async () => {
+  const saveGoalsToDB = useCallback(async () => {
+    const payload = {
+      id: 1,
+      calories: goals.calories,
+      protein: goals.protein,
+      carbs: goals.carbs,
+      fat: goals.fat,
+      updated_at: new Date().toISOString(),
+    };
+
     const { error } = await supabase
       .from('goals')
-      .update({
-        calories: goals.calories,
-        protein: goals.protein,
-        carbs: goals.carbs,
-        fat: goals.fat,
-      })
-      .eq('id', 1);
+      .upsert(payload, { onConflict: 'id' });
 
     if (error) {
       console.error("Errore salvataggio obiettivi:", error.message);
     }
-  };
+  }, [goals]);
 
   // --- LOGICA AGGIUNTA PASTI E PIATTI ---
+
+
   const handleAddMeal = async () => {
-    if (!meal.trim() || !grams || isNaN(grams) || grams <= 0) {
-      alert("Inserisci un cibo valido e una quantità in grammi positiva!");
+    if (!meal.trim() || !quantity || isNaN(quantity) || quantity <= 0) {
+      alert("Inserisci un cibo valido e una quantità positiva!");
       return;
     }
     if (selectedDate > getTodayDate()) {
@@ -134,23 +250,62 @@ const App = () => {
     setLoading(true);
     try {
       let data;
-      const existing = findExistingNutrients(meal);
+      const existing = findExistingNutrients(meal, quantityType, quantity);
 
-      if (existing) {
-        const g = parseFloat(grams);
+      if (existing && existing.calories > 0) {
+        // Usa i macro ricalcolati dal cibo esistente
         data = {
-          food: existing.food, calories: existing.calPerG * g, protein: existing.proPerG * g, carbs: existing.choPerG * g, fat: existing.fatPerG * g
+          food: existing.food,
+          grams: existing.grams,
+          calories: existing.calories,
+          protein: existing.protein,
+          carbs: existing.carbs,
+          fat: existing.fat,
+          caloriesPerUnit: existing.caloriesPerUnit,
+          proteinPerUnit: existing.proteinPerUnit,
+          carbsPerUnit: existing.carbsPerUnit,
+          fatPerUnit: existing.fatPerUnit
         };
       } else {
+        // Nuovo cibo: chiama l'API
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: meal.trim(), grams: parseFloat(grams) })
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ meal: meal.trim(), quantity: parseFloat(quantity), quantityType })
         });
         if (!response.ok) throw new Error(`Errore API: ${response.status}`);
-        data = await response.json();
+        const apiData = await response.json();
+
+        // Calcola i macro per 1 unità del quantityType corrente (1g, 1 unità, 1 cucchiaino, ...)
+        const currentQuantity = parseFloat(quantity);
+        data = {
+          food: apiData.food || meal.trim(),
+          grams: Number(apiData.grams) || (quantityType === 'grams' ? currentQuantity : 0),
+          calories: Number(apiData.calories) || 0,
+          protein: Number(apiData.protein) || 0,
+          carbs: Number(apiData.carbs) || 0,
+          fat: Number(apiData.fat) || 0,
+          caloriesPerUnit: (Number(apiData.calories) || 0) / currentQuantity,
+          proteinPerUnit: (Number(apiData.protein) || 0) / currentQuantity,
+          carbsPerUnit: (Number(apiData.carbs) || 0) / currentQuantity,
+          fatPerUnit: (Number(apiData.fat) || 0) / currentQuantity
+        };
       }
-      
+
       const newDish = {
-        id: Date.now() + Math.random(), food: data.food || meal.trim(), grams: parseFloat(grams), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0,
+        id: Date.now() + Math.random(),
+        food: data.food,
+        grams: Number(data.grams) || 0,
+        quantityType,
+        quantity: parseFloat(quantity),
+        calories: data.calories,
+        protein: data.protein,
+        carbs: data.carbs,
+        fat: data.fat,
+        caloriesPerUnit: data.caloriesPerUnit,
+        proteinPerUnit: data.proteinPerUnit,
+        carbsPerUnit: data.carbsPerUnit,
+        fatPerUnit: data.fatPerUnit
       };
 
       if (targetCardId) {
@@ -174,7 +329,7 @@ const App = () => {
         }
       }
 
-      setMeal(''); setGrams(''); setTargetCardId(null);
+      setMeal(''); setQuantity(''); setTargetCardId(null); setQuantityType('grams');
       if (mealInputRef.current) mealInputRef.current.focus();
     } catch (error) {
       alert(`Errore: ${error.message}`);
@@ -184,8 +339,8 @@ const App = () => {
   };
 
   const handleAddDishFromModal = async () => {
-    if (!modalMeal.trim() || !modalGrams || isNaN(modalGrams) || modalGrams <= 0) {
-      alert("Inserisci un cibo valido e una quantità in grammi positiva!"); return;
+    if (!modalMeal.trim() || !modalQuantity || isNaN(modalQuantity) || modalQuantity <= 0) {
+      alert("Inserisci un cibo valido e una quantità positiva!"); return;
     }
     if (selectedDate > getTodayDate()) {
       alert("Non puoi aggiungere pasti a giorni futuri!"); return;
@@ -194,28 +349,85 @@ const App = () => {
     setModalLoading(true);
     try {
       let data;
-      const existing = findExistingNutrients(modalMeal);
+      const existing = findExistingNutrients(modalMeal, modalQuantityType, modalQuantity);
 
-      if (existing) {
-        const g = parseFloat(modalGrams);
-        data = { food: existing.food, calories: existing.calPerG * g, protein: existing.proPerG * g, carbs: existing.choPerG * g, fat: existing.fatPerG * g };
+      if (existing && existing.calories > 0) {
+        // Usa i macro ricalcolati dal cibo esistente
+        data = {
+          food: existing.food,
+          grams: existing.grams,
+          calories: existing.calories,
+          protein: existing.protein,
+          carbs: existing.carbs,
+          fat: existing.fat,
+          caloriesPerUnit: existing.caloriesPerUnit,
+          proteinPerUnit: existing.proteinPerUnit,
+          carbsPerUnit: existing.carbsPerUnit,
+          fatPerUnit: existing.fatPerUnit
+        };
       } else {
+        // Nuovo cibo: chiama l'API
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meal: modalMeal.trim(), grams: parseFloat(modalGrams) })
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ meal: modalMeal.trim(), quantity: parseFloat(modalQuantity), quantityType: modalQuantityType })
         });
         if (!response.ok) throw new Error(`Errore API: ${response.status}`);
-        data = await response.json();
+        const apiData = await response.json();
+
+        // Calcola i macro per 1 unità del quantityType corrente (1g, 1 unità, 1 cucchiaino, ...)
+        const currentQuantity = parseFloat(modalQuantity);
+        data = {
+          food: apiData.food || modalMeal.trim(),
+          grams: Number(apiData.grams) || (modalQuantityType === 'grams' ? currentQuantity : 0),
+          calories: Number(apiData.calories) || 0,
+          protein: Number(apiData.protein) || 0,
+          carbs: Number(apiData.carbs) || 0,
+          fat: Number(apiData.fat) || 0,
+          caloriesPerUnit: (Number(apiData.calories) || 0) / currentQuantity,
+          proteinPerUnit: (Number(apiData.protein) || 0) / currentQuantity,
+          carbsPerUnit: (Number(apiData.carbs) || 0) / currentQuantity,
+          fatPerUnit: (Number(apiData.fat) || 0) / currentQuantity
+        };
       }
-      
+
       const targetCard = logs.find(c => c.id === modalCardId);
       let updatedDishes;
-      
+
       if (editingDishId) {
+        // Modifica piatto esistente
         updatedDishes = targetCard.dishes.map(d => d.id === editingDishId ? {
-            ...d, food: data.food || modalMeal.trim(), grams: parseFloat(modalGrams), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0,
+            ...d,
+            food: data.food,
+            grams: Number(data.grams) || 0,
+            quantityType: modalQuantityType,
+            quantity: parseFloat(modalQuantity),
+            calories: data.calories,
+            protein: data.protein,
+            carbs: data.carbs,
+            fat: data.fat,
+            caloriesPerUnit: data.caloriesPerUnit,
+            proteinPerUnit: data.proteinPerUnit,
+            carbsPerUnit: data.carbsPerUnit,
+            fatPerUnit: data.fatPerUnit
           } : d);
       } else {
-        const newDish = { id: Date.now() + Math.random(), food: data.food || modalMeal.trim(), grams: parseFloat(modalGrams), calories: Number(data.calories) || 0, protein: Number(data.protein) || 0, carbs: Number(data.carbs) || 0, fat: Number(data.fat) || 0, };
+        // Nuovo piatto
+        const newDish = {
+          id: Date.now() + Math.random(),
+          food: data.food,
+          grams: Number(data.grams) || 0,
+          quantityType: modalQuantityType,
+          quantity: parseFloat(modalQuantity),
+          calories: data.calories,
+          protein: data.protein,
+          carbs: data.carbs,
+          fat: data.fat,
+          caloriesPerUnit: data.caloriesPerUnit,
+          proteinPerUnit: data.proteinPerUnit,
+          carbsPerUnit: data.carbsPerUnit,
+          fatPerUnit: data.fatPerUnit
+        };
         updatedDishes = [...targetCard.dishes, newDish];
       }
 
@@ -232,22 +444,26 @@ const App = () => {
 
   // ... (Tutte le funzioni di cancellazione rimangono identiche)
   const clearLogs = async () => {
-    if(window.confirm("Sei sicuro di voler cancellare tutti i dati della cronologia? Questa operazione è irreversibile.")) {
-      const { error } = await supabase.from('meals').delete().neq('category', 'vuoto'); 
-      if (!error) setLogs([]); else alert("Errore durante la cancellazione");
+    if(window.confirm("Sei sicuro di voler cancellare tutti i pasti del giorno selezionato? Questa operazione è irreversibile.")) {
+      const { error } = await supabase.from('meals').delete().eq('date', selectedDate);
+      if (!error) {
+        setLogs((prev) => prev.filter((card) => card.date !== selectedDate));
+      } else {
+        alert("Errore durante la cancellazione");
+      }
     }
   };
 
   const handleAddAnotherDish = (cardId, entryCategory) => {
-    setModalCardId(cardId); setModalCardCategory(entryCategory); setModalMeal(''); setModalGrams(''); setEditingDishId(null); setShowDishModal(true);
+    setModalCardId(cardId); setModalCardCategory(entryCategory); setModalMeal(''); setModalQuantity(''); setModalQuantityType('grams'); setEditingDishId(null); setShowDishModal(true);
   };
 
   const handleEditDish = (cardId, dish) => {
-    setModalCardId(cardId); setModalMeal(dish.food); setModalGrams(dish.grams.toString()); setEditingDishId(dish.id); setShowDishModal(true);
+    setModalCardId(cardId); setModalMeal(dish.food); setModalQuantity(dish.quantity.toString()); setModalQuantityType(dish.quantityType); setEditingDishId(dish.id); setShowDishModal(true);
   };
 
   const closeModal = () => {
-    setShowDishModal(false); setModalCardId(null); setModalCardCategory(''); setModalMeal(''); setModalGrams(''); setEditingDishId(null); setModalLoading(false);
+    setShowDishModal(false); setModalCardId(null); setModalCardCategory(''); setModalMeal(''); setModalQuantity(''); setModalQuantityType('grams'); setEditingDishId(null); setModalLoading(false);
   };
 
   const handleRemoveCard = async (cardId) => {
@@ -261,7 +477,15 @@ const App = () => {
     const card = logs.find(c => c.id === cardId);
     const reducedDishes = card.dishes.filter((dish) => dish.id !== dishId);
 
-    if (reducedDishes.length === 0) { handleRemoveCard(cardId); } 
+    if (reducedDishes.length === 0) {
+      // Il piatto è l'unico nella card: elimina direttamente il pasto senza una seconda conferma.
+      const { error } = await supabase.from('meals').delete().eq('id', cardId);
+      if (!error) {
+        setLogs((prev) => prev.filter((c) => c.id !== cardId));
+      } else {
+        alert("Errore durante l'eliminazione");
+      }
+    }
     else {
       const { error } = await supabase.from('meals').update({ dishes: reducedDishes }).eq('id', cardId);
       if (!error) setLogs((prev) => prev.map((c) => c.id === cardId ? { ...c, dishes: reducedDishes } : c)); else alert("Errore durante l'aggiornamento");
@@ -269,8 +493,9 @@ const App = () => {
   };
 
   // Calcolo dei totali giornalieri per le barre di progresso
-  const dailyTotals = dailyLogs.reduce((acc, card) => {
-    const cardTotals = card.dishes.reduce((cAcc, dish) => ({
+  const dailyTotals = useMemo(() => dailyLogs.reduce((acc, card) => {
+    const dishes = Array.isArray(card.dishes) ? card.dishes : [];
+    const cardTotals = dishes.reduce((cAcc, dish) => ({
       calories: cAcc.calories + (Number(dish.calories) || 0),
       protein: cAcc.protein + (Number(dish.protein) || 0),
       carbs: cAcc.carbs + (Number(dish.carbs) || 0),
@@ -283,7 +508,15 @@ const App = () => {
       carbs: acc.carbs + cardTotals.carbs,
       fat: acc.fat + cardTotals.fat,
     };
-  }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  }, { calories: 0, protein: 0, carbs: 0, fat: 0 }), [dailyLogs]);
+
+  if (initialLoading) {
+    return <LoadingScreen message="Caricamento dati in corso..." />;
+  }
+
+  if (syncLoading) {
+    return <LoadingScreen message="Sincronizzazione in corso..." />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 relative overflow-hidden text-white">
@@ -293,10 +526,12 @@ const App = () => {
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply opacity-10 blur-3xl"></div>
       </div>
 
-      {/* PULSANTE HAMBURGER MENU */}
+      {/* PULSANTE HAMBURGER MENU SEMPRE FISSO IN ALTO */}
       <button 
         onClick={() => setIsSidebarOpen(true)}
-        className="fixed top-6 left-6 z-40 p-3 bg-slate-900 border border-violet-700 border-opacity-50 rounded-xl text-white hover:bg-slate-800 transition-all shadow-lg shadow-violet-500/20"
+        className="fixed top-0 left-0 z-50 p-3 mt-2 ml-2 bg-slate-900 border border-violet-700 border-opacity-50 rounded-xl text-white hover:bg-slate-800 transition-all shadow-lg shadow-violet-500/20"
+        style={{ position: 'fixed', top: 0, left: 0 }}
+        aria-label="Apri menu"
       >
         <div className="space-y-1.5">
           <div className="w-6 h-0.5 bg-white rounded-full"></div>
@@ -306,42 +541,24 @@ const App = () => {
       </button>
 
       {/* SIDEBAR LATERALE */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex animate-in fade-in duration-200" onClick={() => setIsSidebarOpen(false)}>
-          <div 
-            className="w-72 bg-slate-950 border-r border-violet-700 border-opacity-50 h-full p-6 flex flex-col gap-4 shadow-2xl animate-in slide-in-from-left duration-300"
-            onClick={e => e.stopPropagation()} 
-          >
-            <div className="flex justify-between items-center mb-8 mt-2">
-              <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600">Menu</h2>
-              <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white text-2xl font-bold">✕</button>
-            </div>
-            
-            <button 
-              onClick={() => { setCurrentView('calculator'); setIsSidebarOpen(false); }}
-              className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${currentView === 'calculator' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <span className="text-xl">🍽️</span> Calories Calculator
-            </button>
-            <button 
-              onClick={() => { setCurrentView('goals'); setIsSidebarOpen(false); }}
-              className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${currentView === 'goals' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}
-            >
-              <span className="text-xl">🎯</span> Miei Obiettivi
-            </button>
-          </div>
-        </div>
-      )}
+      <Sidebar
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        onSync={handleSyncWithSupabase}
+        syncLoading={syncLoading}
+      />
 
       {/* CONTENITORE PRINCIPALE */}
-      <div className="relative z-10 min-h-screen p-4 pt-20 md:p-8 md:pt-8 font-sans">
-        <div className="max-w-4xl mx-auto">
+      <div className="relative z-10 min-h-screen p-2 pt-16 md:p-8 md:pt-8 font-sans">
+        <div className="max-w-full md:max-w-4xl mx-auto">
           
           {/* HEADER COMUNE AD ENTRAMBE LE PAGINE */}
-          <header className="mb-12 text-center">
-            <div className="inline-block mb-4">
-              <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600">Calories Calculator</h1>
-              <p className="text-cyan-400 text-sm tracking-widest mt-1 font-semibold">Your Daily Nutrition Monitor</p>
+          <header className="mb-8 text-center">
+            <div className="inline-block mb-2">
+              <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600 leading-tight">Calories Calculator</h1>
+              <p className="text-cyan-400 text-xs xs:text-sm tracking-widest mt-1 font-semibold">Your Daily Nutrition Monitor</p>
             </div>
           </header>
 
@@ -378,301 +595,56 @@ const App = () => {
           ) : (
             /* --- PAGINA PRINCIPALE: CALORIES CALCULATOR --- */
             <div className="animate-in fade-in duration-500">
-              {/* Calendario Orizzontale */}
-              <div className="mb-10 flex items-center justify-center gap-4">
-                <button 
-                  onClick={() => setSelectedDate(new Date(new Date(selectedDate).getTime() - 86400000).toISOString().split('T')[0])}
-                  className="px-4 py-2 text-violet-400 hover:text-white transition-colors text-xl font-bold"
-                >←</button>
-
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-[280px] md:max-w-3xl">
-                  {Array.from({ length: 30 }, (_, i) => {
-                    const date = new Date(new Date().getTime() - (14 - i) * 86400000).toISOString().split('T')[0];
-                    const isSelected = date === selectedDate;
-                    const isToday = date === getTodayDate();
-                    
-                    return (
-                      <button
-                        key={date}
-                        ref={isToday ? todayButtonRef : null}
-                        onClick={() => date <= getTodayDate() && setSelectedDate(date)}
-                        className={`
-                          px-4 py-3 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-300
-                          ${isSelected 
-                            ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg border-2 border-violet-400 scale-105' 
-                            : isToday
-                            ? 'border-2 border-cyan-400 text-cyan-400 bg-slate-800'
-                            : date > getTodayDate()
-                            ? 'opacity-30 cursor-not-allowed bg-slate-900 text-slate-600'
-                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                          }
-                        `}
-                      >
-                        {new Date(date).toLocaleDateString('it-IT', { month: 'short', day: 'numeric' })}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button 
-                  onClick={() => {
-                    const next = new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0];
-                    if (next <= getTodayDate()) setSelectedDate(next);
-                  }}
-                  className={`px-4 py-2 text-xl font-bold transition-colors ${new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0] > getTodayDate() ? 'text-gray-700 cursor-not-allowed' : 'text-violet-400 hover:text-white'}`}
-                >→</button>
-              </div>
-
-              {/* DASHBOARD STATS CON PERCENTUALI */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
-                <StatCard 
-                  label="Calorie" value={dailyTotals.calories.toFixed(0)} unit="kcal" icon="🔥" gradient="from-orange-500 to-red-600" 
-                  percentage={goals.calories > 0 ? Math.round((dailyTotals.calories / goals.calories) * 100) : 0}
-                />
-                <StatCard 
-                  label="Proteine" value={dailyTotals.protein.toFixed(1)} unit="g" icon="🥩" gradient="from-blue-500 to-cyan-600" 
-                  percentage={goals.protein > 0 ? Math.round((dailyTotals.protein / goals.protein) * 100) : 0}
-                />
-                <StatCard 
-                  label="Carboidrati" value={dailyTotals.carbs.toFixed(1)} unit="g" icon="🌾" gradient="from-yellow-400 to-orange-500" 
-                  percentage={goals.carbs > 0 ? Math.round((dailyTotals.carbs / goals.carbs) * 100) : 0}
-                />
-                <StatCard 
-                  label="Grassi" value={dailyTotals.fat.toFixed(1)} unit="g" icon="🥑" gradient="from-green-400 to-emerald-600" 
-                  percentage={goals.fat > 0 ? Math.round((dailyTotals.fat / goals.fat) * 100) : 0}
-                />
-              </div>
-
-              {/* INPUT FORM */}
-              <div className={`
-                bg-slate-900 rounded-3xl border border-violet-700 border-opacity-30 p-8 mb-10 backdrop-blur-sm hover:border-opacity-70 transition-all duration-300
-                ${selectedDate > getTodayDate() ? 'opacity-50 pointer-events-none grayscale' : ''}
-              `}>
-                <h2 className="text-2xl font-bold mb-6 text-white flex items-center gap-2">
-                  <span className="text-3xl">📝</span> Aggiungi un pasto
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                  <select 
-                    className="md:col-span-3 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all cursor-pointer"
-                    value={category} onChange={(e) => setCategory(e.target.value)}
-                  >
-                    {['Colazione', 'Pranzo', 'Cena', 'Spuntino'].map(c => <option key={c} className="bg-slate-900">{c}</option>)}
-                  </select>
-                  <input 
-                    ref={mealInputRef}
-                    className="md:col-span-5 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500"
-                    type="text" placeholder="Es: Pasta al pesto" 
-                    value={meal} onChange={(e) => setMeal(e.target.value)}
-                  />
-                  <input 
-                    className="md:col-span-2 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500"
-                    type="number" placeholder="Grammi" 
-                    value={grams} onChange={(e) => setGrams(e.target.value)}
-                  />
-                  <button
-                    onClick={handleAddMeal} disabled={loading}
-                    className={`md:col-span-2 px-4 py-3 rounded-xl font-bold text-white transition-all active:scale-95 transform ${
-                      loading ? 'bg-slate-700 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:shadow-lg hover:shadow-violet-500/50 hover:-translate-y-0.5'
-                    }`}
-                  >
-                    {loading ? '⏳' : '✚ Aggiungi'}
-                  </button>
-                </div>
-              </div>
-
-              {/* LISTA PASTI */}
-              <div>
-                <div className="flex justify-between items-center mb-6 px-2">
-                  <h3 className="font-bold text-2xl text-white flex items-center gap-2">
-                    <span className="text-3xl">📋</span> Pasti della giornata
-                  </h3>
-                  {dailyLogs.length > 0 && (
-                    <button onClick={clearLogs} className="text-sm text-gray-400 hover:text-pink-400 transition-colors font-semibold hover:underline">
-                      🗑️ Svuota tutto
-                    </button>
-                  )}
-                </div>
-                
-                {dailyLogs.length === 0 && (
-                  <div className="text-center py-20 bg-slate-900 bg-opacity-20 rounded-3xl border-2 border-dashed border-slate-800">
-                    <p className="text-6xl mb-6">🍽️</p>
-                    <p className="text-gray-400 text-lg">Nessun pasto registrato per questo giorno.</p>
-                    <p className="text-gray-500 text-sm mt-2 italic">Aggiungi qualcosa di gustoso!</p>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  {dailyLogs.map((log) => {
-                    const cardTotals = log.dishes.reduce((cAcc, dish) => ({
-                      calories: cAcc.calories + Number(dish.calories), protein: cAcc.protein + Number(dish.protein), carbs: cAcc.carbs + Number(dish.carbs), fat: cAcc.fat + Number(dish.fat),
-                    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-
-                    return (
-                      <div key={log.id} className="bg-slate-900 border border-violet-700 border-opacity-30 p-6 rounded-2xl hover:border-opacity-70 transition-all duration-300 group hover:shadow-lg hover:shadow-violet-500/20 hover:-translate-y-0.5">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <span className="text-xs font-bold uppercase tracking-wider text-violet-300 bg-slate-800 px-3 py-1.5 rounded-full border border-violet-700 border-opacity-30">
-                              {log.category}
-                            </span>
-                            <div className="flex flex-wrap gap-2 mt-3">
-                              <NutrientBadge label="kcal" value={cardTotals.calories.toFixed(0)} color="text-orange-400" />
-                              <NutrientBadge label="PRO" value={cardTotals.protein.toFixed(1)} color="text-blue-400" />
-                              <NutrientBadge label="CHO" value={cardTotals.carbs.toFixed(1)} color="text-yellow-400" />
-                              <NutrientBadge label="FAT" value={cardTotals.fat.toFixed(1)} color="text-green-400" />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => handleRemoveCard(log.id)} className="text-xs text-red-400 hover:text-red-500 font-semibold transition-colors opacity-60 hover:opacity-100">
-                              Elimina pasto
-                            </button>
-                            <button onClick={() => handleAddAnotherDish(log.id, log.category)} className="text-xs text-violet-400 hover:text-violet-200 font-semibold transition-colors bg-slate-800 px-3 py-1.5 rounded-lg border border-violet-700 border-opacity-30">
-                              + Nuovo piatto
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 mt-4">
-                          {log.dishes.map((dish) => (
-                            <div key={dish.id} className="bg-slate-800 rounded-xl p-4 flex justify-between items-center border border-violet-700 border-opacity-10 hover:border-opacity-40 transition-all group/item">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm text-white font-bold">{dish.food}</p>
-                                  <span className="text-[10px] text-gray-500 font-bold bg-slate-900 px-2 py-0.5 rounded-md uppercase tracking-tighter">
-                                    {dish.grams}g
-                                  </span>
-                                </div>
-                                <div className="flex gap-3 mt-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-tighter">
-                                  <span>🔥 {dish.calories.toFixed(0)} kcal</span>
-                                  <span>🥩 {dish.protein.toFixed(1)}g pro</span>
-                                  <span>🌾 {dish.carbs.toFixed(1)}g cho</span>
-                                  <span>🥑 {dish.fat.toFixed(1)}g fat</span>
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <button onClick={() => handleEditDish(log.id, dish)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-violet-600 text-white transition-all transform active:scale-90" title="Modifica">
-                                  ✏️
-                                </button>
-                                <button onClick={() => handleRemoveDish(log.id, dish.id)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-red-500 text-white transition-all transform active:scale-90">
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <DayCard
+                selectedDate={selectedDate}
+                setSelectedDate={setSelectedDate}
+                getTodayDate={getTodayDate}
+                dailyTotals={dailyTotals}
+                goals={goals}
+                category={category}
+                setCategory={setCategory}
+                meal={meal}
+                setMeal={setMeal}
+                quantity={quantity}
+                setQuantity={setQuantity}
+                quantityType={quantityType}
+                setQuantityType={setQuantityType}
+                handleAddMeal={handleAddMeal}
+                loading={loading}
+                mealInputRef={mealInputRef}
+                dailyLogs={dailyLogs}
+                clearLogs={clearLogs}
+                onEditDish={handleEditDish}
+                onDeleteDish={handleRemoveDish}
+                onDeleteMeal={handleRemoveCard}
+                onAddDish={handleAddAnotherDish}
+                todayButtonRef={todayButtonRef}
+              />
             </div>
           )}
         </div>
       </div>
 
       {/* MODALE PER AGGIUNGERE/MODIFICARE PIATTI (Visibile in entrambe le viste se attivato) */}
-      {showDishModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all animate-in fade-in duration-300">
-          <div className="bg-slate-900 border border-violet-700 border-opacity-50 rounded-3xl p-8 w-full max-w-md shadow-2xl transform animate-in slide-in-from-bottom-4 duration-300">
-            <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-              {editingDishId ? '✏️ Modifica piatto' : '✚ Aggiungi piatto'}
-            </h2>
-            <p className="text-gray-400 text-sm mb-6 uppercase tracking-wider font-bold">In: {modalCardCategory}</p>
-            
-            <div className="space-y-4 mb-8">
-              <div>
-                <label className="text-xs font-bold text-violet-400 uppercase mb-2 block">Nome alimento</label>
-                <input 
-                  className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white outline-none focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 transition-all"
-                  type="text" placeholder="Es: Petto di pollo" 
-                  value={modalMeal} onChange={(e) => setModalMeal(e.target.value)} autoFocus
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-violet-400 uppercase mb-2 block">Quantità (grammi)</label>
-                <input 
-                  className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white outline-none focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 transition-all"
-                  type="number" placeholder="Es: 150" 
-                  value={modalGrams} onChange={(e) => setModalGrams(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button onClick={closeModal} className="flex-1 px-4 py-3 rounded-xl font-bold text-gray-300 bg-slate-800 hover:bg-slate-700 transition-all active:scale-95">
-                Annulla
-              </button>
-              <button
-                onClick={handleAddDishFromModal} disabled={modalLoading}
-                className={`flex-1 px-4 py-3 rounded-xl font-bold text-white transition-all active:scale-95 ${ 
-                  modalLoading ? 'bg-slate-700 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:shadow-lg hover:shadow-violet-500/50'
-                }`}
-              >
-                {modalLoading ? '⏳' : editingDishId ? '✏️ Salva modifiche' : '✚ Aggiungi piatto'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DishModal
+        showDishModal={showDishModal}
+        closeModal={closeModal}
+        modalMeal={modalMeal}
+        setModalMeal={setModalMeal}
+        modalQuantityType={modalQuantityType}
+        setModalQuantityType={setModalQuantityType}
+        modalQuantity={modalQuantity}
+        setModalQuantity={setModalQuantity}
+        modalCardId={modalCardId}
+        modalCardCategory={modalCardCategory}
+        editingDishId={editingDishId}
+        handleAddDishFromModal={handleAddDishFromModal}
+        modalLoading={modalLoading}
+      />
     </div>
   );
 };
 
 // --- COMPONENTI ACCESSORI AGGIORNATI ---
-
-// Aggiunta la barra della percentuale
-const StatCard = ({ label, value, unit, icon, gradient, percentage }) => (
-  <div className={`bg-gradient-to-br ${gradient} p-6 rounded-2xl text-white shadow-lg border border-white border-opacity-10 group hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between`}>
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs uppercase font-bold opacity-90 tracking-wider">{label}</p>
-        <span className="text-2xl group-hover:scale-110 transition-transform">{icon}</span>
-      </div>
-      <div className="flex items-baseline gap-1">
-        <span className="text-3xl font-black">{value}</span>
-        <span className="text-xs font-semibold opacity-80">{unit}</span>
-      </div>
-    </div>
-    {percentage !== undefined && (
-      <div className="mt-4">
-        <div className="h-1.5 w-full bg-black bg-opacity-30 rounded-full overflow-hidden">
-          <div 
-            className={`h-full transition-all duration-500 ${percentage > 100 ? 'bg-red-400' : 'bg-white'}`} 
-            style={{ width: `${Math.min(percentage, 100)}%` }} 
-          />
-        </div>
-        <p className={`text-[10px] mt-1 font-bold text-right opacity-90 ${percentage > 100 ? 'text-red-300' : ''}`}>
-          {percentage}% {percentage > 100 ? '(Superato)' : ''}
-        </p>
-      </div>
-    )}
-  </div>
-);
-
-// Nuova card modificabile per la pagina obiettivi
-const EditableStatCard = ({ label, value, unit, icon, gradient, onChange, onBlur }) => (
-  <div className={`bg-gradient-to-br ${gradient} p-6 rounded-2xl text-white shadow-lg border border-white border-opacity-10`}>
-    <div className="flex items-center justify-between mb-4">
-      <p className="text-xs uppercase font-bold opacity-90 tracking-wider">{label}</p>
-      <span className="text-2xl">{icon}</span>
-    </div>
-    <div className="flex items-baseline gap-2 bg-black bg-opacity-20 p-2 rounded-xl border border-transparent focus-within:border-white focus-within:border-opacity-30 transition-all">
-      <input
-        type="number"
-        value={value}
-        onChange={onChange}
-        onBlur={onBlur} // Salva su database al click esterno
-        className="text-2xl font-black bg-transparent border-none outline-none w-full text-right"
-      />
-      <span className="text-sm font-semibold opacity-80">{unit}</span>
-    </div>
-  </div>
-);
-
-const NutrientBadge = ({ label, value, color }) => (
-  <div className="flex items-center gap-1.5 bg-slate-800 bg-opacity-50 px-2.5 py-1 rounded-md border border-slate-700 border-opacity-50">
-    <span className={`text-[10px] font-black ${color} uppercase tracking-tighter`}>{label}</span>
-    <span className="text-xs font-bold text-white">{value}</span>
-  </div>
-);
 
 export default App;

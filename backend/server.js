@@ -11,23 +11,39 @@ const API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
  
 app.post('/api/analyze', async (req, res) => {
-    const { meal, grams } = req.body;
-    console.log(`--- Richiesta reale per: ${grams}g di ${meal} ---`);
+    const { meal, quantity, quantityType } = req.body;
+    console.log(`--- Richiesta ricevuta: ${quantity} ${quantityType} di ${meal} ---`);
  
-    // --- PROMPT AGGIORNATO PER VALIDAZIONE ALIMENTI ---
+    // Determina la descrizione della quantità
+    let quantityDesc;
+    if (quantityType === 'grams') {
+        quantityDesc = `${quantity}g`;
+    } else if (quantityType === 'unit') {
+        quantityDesc = `${quantity} unità`;
+    } else if (quantityType === 'teaspoon') {
+        quantityDesc = `${quantity} cucchiaino`;
+    } else if (quantityType === 'tablespoon') {
+        quantityDesc = `${quantity} cucchiaio`;
+    } else {
+        quantityDesc = `${quantity} ${quantityType}`;
+    }
+ 
+    // --- PROMPT AGGIORNATO PER VALIDAZIONE ALIMENTI E QUANTITÀ ---
     const prompt = `Agisci come un database nutrizionale scientifico e certificato.
-    Analizza esattamente ${grams}g di "${meal}".
+    Analizza esattamente ${quantityDesc} di "${meal}".
 
     PRIMA DI TUTTO: Verifica se "${meal}" è un alimento reale e commestibile.
     - Se NON è un cibo (es. "ciao", "test", "123", parole senza senso, o non commestibili), rispondi ESCLUSIVAMENTE con: {"error": "invalid_food"}
     - Se è un cibo valido, procedi con l'analisi nutrizionale.
 
     REGOLE RIGIDE per alimenti validi:
-    1. Usa esclusivamente valori medi standard tratti da tabelle nutrizionali ufficiali (es. USDA).
-    2. Sii estremamente deterministico: per lo stesso alimento e lo stesso peso, devi fornire SEMPRE gli stessi valori ogni volta che ti viene chiesto.
-    3. Non aggiungere variazioni "creative". Se l'alimento è un ingrediente puro (es. Yogurt Greco), usa il valore standard per 100g e rapportalo a ${grams}g.
-    4. Rispondi ESCLUSIVAMENTE con questo oggetto JSON puro:
-    {"food": "${meal}", "calories": num, "protein": num, "carbs": num, "fat": num}.
+    1. Interpreta correttamente la quantità: se è "unità", stima il peso medio (es. 1 pizza ~300g, 1 panino ~120g, 1 mela ~150g). Se è cucchiaino/cucchiaio, usa ~5g/15g per liquidi o ~3g/10g per solidi.
+    2. Usa esclusivamente valori medi standard tratti da tabelle nutrizionali ufficiali (es. USDA).
+    3. Sii estremamente deterministico: per lo stesso alimento e la stessa quantità, devi fornire SEMPRE gli stessi valori ogni volta che ti viene chiesto.
+    4. Non aggiungere variazioni "creative". Rapporta sempre i valori alla quantità richiesta.
+    5. Rispondi ESCLUSIVAMENTE con questo oggetto JSON puro:
+    {"food": "${meal}", "grams": num, "calories": num, "protein": num, "carbs": num, "fat": num}.
+    - "grams" deve essere il peso stimato in grammi della quantità fornita.
     Usa solo numeri puri, non stringhe. Niente testo aggiuntivo, commenti o blocchi di codice markdown.`;
  
     try {
@@ -57,6 +73,7 @@ app.post('/api/analyze', async (req, res) => {
         const finalData = JSON.parse(cleanJsonText);
  
         console.log("Risposta ottenuta con successo:", finalData);
+        console.log(`--- Risposta inviata: ${JSON.stringify(finalData)} ---`);
         res.json(finalData);
  
     } catch (error) {
