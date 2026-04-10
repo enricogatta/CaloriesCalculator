@@ -40,12 +40,55 @@ const App = () => {
 
   const mealInputRef = React.useRef(null);
   const todayButtonRef = React.useRef(null);
+  const pendingApiRequestsRef = React.useRef(new Map());
 
   const getTodayDate = useCallback(() => new Date().toISOString().split('T')[0], []);
   const dailyLogs = useMemo(
     () => logs.filter(log => log.date === selectedDate),
     [logs, selectedDate]
   );
+
+  const getAnalyzeKey = useCallback((foodName, qty, qtyType) => {
+    const normalizedFood = String(foodName || '').trim().toLowerCase();
+    const normalizedQty = Number(qty).toFixed(3);
+    const normalizedQtyType = String(qtyType || '').trim().toLowerCase();
+    return `${normalizedFood}|${normalizedQty}|${normalizedQtyType}`;
+  }, []);
+
+  const fetchNutritionFromApi = useCallback(async (foodName, qty, qtyType) => {
+    const key = getAnalyzeKey(foodName, qty, qtyType);
+    const pending = pendingApiRequestsRef.current.get(key);
+    if (pending) {
+      return pending;
+    }
+
+    const requestPromise = (async () => {
+      const response = await fetch(`${API_BASE_URL}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meal: String(foodName || '').trim(),
+          quantity: parseFloat(qty),
+          quantityType: qtyType
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || `Errore API: ${response.status}`);
+      }
+
+      return payload;
+    })();
+
+    pendingApiRequestsRef.current.set(key, requestPromise);
+
+    try {
+      return await requestPromise;
+    } finally {
+      pendingApiRequestsRef.current.delete(key);
+    }
+  }, [getAnalyzeKey]);
 
   // Cerca un cibo già presente nei dati Supabase caricati e ricalcola i macro sulla nuova quantità.
   const findExistingNutrients = useCallback((foodName, quantityType, quantity) => {
@@ -268,13 +311,7 @@ const App = () => {
         };
       } else {
         // Nuovo cibo: chiama l'API
-        const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ meal: meal.trim(), quantity: parseFloat(quantity), quantityType })
-        });
-        if (!response.ok) throw new Error(`Errore API: ${response.status}`);
-        const apiData = await response.json();
+        const apiData = await fetchNutritionFromApi(meal.trim(), quantity, quantityType);
 
         // Calcola i macro per 1 unità del quantityType corrente (1g, 1 unità, 1 cucchiaino, ...)
         const currentQuantity = parseFloat(quantity);
@@ -367,13 +404,7 @@ const App = () => {
         };
       } else {
         // Nuovo cibo: chiama l'API
-        const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ meal: modalMeal.trim(), quantity: parseFloat(modalQuantity), quantityType: modalQuantityType })
-        });
-        if (!response.ok) throw new Error(`Errore API: ${response.status}`);
-        const apiData = await response.json();
+        const apiData = await fetchNutritionFromApi(modalMeal.trim(), modalQuantity, modalQuantityType);
 
         // Calcola i macro per 1 unità del quantityType corrente (1g, 1 unità, 1 cucchiaino, ...)
         const currentQuantity = parseFloat(modalQuantity);
