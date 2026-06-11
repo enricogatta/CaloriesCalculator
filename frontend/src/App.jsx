@@ -6,9 +6,9 @@ import DishModal from './components/Modals/DishModal';
 import EditableStatCard from './components/UI/EditableStatCard';
 import LoadingScreen from './components/UI/LoadingScreen';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-const App = () => {
+const App = ({ user, onSignOut }) => {
   const [meal, setMeal] = useState('');
   const [quantityType, setQuantityType] = useState('grams'); // 'grams', 'unit', 'teaspoon'
   const [quantity, setQuantity] = useState('');
@@ -147,6 +147,7 @@ const App = () => {
       const { data, error } = await supabase
         .from('meals')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -157,54 +158,33 @@ const App = () => {
     } catch (err) {
       console.error('❌ Eccezione durante caricamento:', err);
     }
-  }, []);
+  }, [user.id]);
 
   const fetchGoals = useCallback(async () => {
-    console.log('🔄 Caricamento goals...');
     const { data, error } = await supabase
       .from('goals')
       .select('*')
-      .eq('id', 1)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (error) {
-      console.error('❌ Errore caricamento goals:', error);
-      console.error('Dettagli errore:', error.message, error.details, error.hint);
-      console.error('Codice errore:', error.code);
-      // Fallback ai valori di default
-      setGoals({
-        calories: 2000,
-        protein: 150,
-        carbs: 250,
-        fat: 70
-      });
+      console.error('❌ Errore caricamento goals:', error.message);
+      setGoals({ calories: 2000, protein: 150, carbs: 250, fat: 70 });
     } else if (data) {
-      console.log('✅ Goals caricati:', data);
       setGoals({
-        calories: data?.calories || 2000,
-        protein: data?.protein || 150,
-        carbs: data?.carbs || 250,
-        fat: data?.fat || 70
+        calories: data.calories || 2000,
+        protein: data.protein || 150,
+        carbs: data.carbs || 250,
+        fat: data.fat || 70
       });
     } else {
-      // Nessuna riga presente: creiamo la riga singleton con id=1
-      const defaultGoals = { id: 1, calories: 2000, protein: 150, carbs: 250, fat: 70 };
-      const { error: insertError } = await supabase
-        .from('goals')
-        .upsert(defaultGoals, { onConflict: 'id' });
-
-      if (insertError) {
-        console.error('❌ Errore inizializzazione goals:', insertError);
-      }
-
-      setGoals({
-        calories: defaultGoals.calories,
-        protein: defaultGoals.protein,
-        carbs: defaultGoals.carbs,
-        fat: defaultGoals.fat
-      });
+      // Prima volta: crea la riga di default per questo utente
+      const defaultGoals = { user_id: user.id, calories: 2000, protein: 150, carbs: 250, fat: 70 };
+      const { error: insertError } = await supabase.from('goals').insert(defaultGoals);
+      if (insertError) console.error('❌ Errore inizializzazione goals:', insertError.message);
+      setGoals({ calories: 2000, protein: 150, carbs: 250, fat: 70 });
     }
-  }, []);
+  }, [user.id]);
 
   // 1. CARICAMENTO DATI PASTI DA SUPABASE
   useEffect(() => {
@@ -260,7 +240,7 @@ const App = () => {
 
   const saveGoalsToDB = useCallback(async () => {
     const payload = {
-      id: 1,
+      user_id: user.id,
       calories: goals.calories,
       protein: goals.protein,
       carbs: goals.carbs,
@@ -270,12 +250,12 @@ const App = () => {
 
     const { error } = await supabase
       .from('goals')
-      .upsert(payload, { onConflict: 'id' });
+      .upsert(payload, { onConflict: 'user_id' });
 
     if (error) {
       console.error("Errore salvataggio obiettivi:", error.message);
     }
-  }, [goals]);
+  }, [goals, user.id]);
 
   // --- LOGICA AGGIUNTA PASTI E PIATTI ---
 
@@ -359,7 +339,7 @@ const App = () => {
           if (error) throw error;
           setLogs((prev) => prev.map((card) => card.id === existingMealCard.id ? { ...card, dishes: updatedDishes } : card));
         } else {
-          const newCard = { category, dishes: [newDish], date: selectedDate };
+          const newCard = { category, dishes: [newDish], date: selectedDate, user_id: user.id };
           const { data: insertedData, error } = await supabase.from('meals').insert([newCard]).select();
           if (error) throw error;
           setLogs((prev) => [insertedData[0], ...prev]);
@@ -579,6 +559,8 @@ const App = () => {
         setCurrentView={setCurrentView}
         onSync={handleSyncWithSupabase}
         syncLoading={syncLoading}
+        onSignOut={onSignOut}
+        userEmail={user.email}
       />
 
       {/* CONTENITORE PRINCIPALE */}

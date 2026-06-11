@@ -1,22 +1,28 @@
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
- 
-const app = express();
-app.use(cors());
-app.use(express.json());
- 
 const API_KEY = (process.env.GEMINI_API_KEY || '').trim();
 const GEMINI_MODELS = (process.env.GEMINI_MODELS || 'gemini-2.5-flash,gemini-2.0-flash')
     .split(',')
-    .map(model => model.trim())
+    .map(m => m.trim())
     .filter(Boolean);
 const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS || 15000);
 const GEMINI_MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES || 2);
 const CACHE_TTL_MS = Number(process.env.NUTRITION_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
 
+// Cache persists within the same warm function instance
 const responseCache = new Map();
 const inFlightRequests = new Map();
+
+const CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Content-Type': 'application/json',
+};
+
+const reply = (statusCode, body) => ({
+    statusCode,
+    headers: CORS_HEADERS,
+    body: JSON.stringify(body),
+});
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -29,31 +35,16 @@ const buildRequestKey = (meal, quantity, quantityType) => {
 
 const isClearlyInvalidMeal = (meal) => {
     const text = String(meal || '').trim();
-
-    if (!text || text.length < 2) {
-        return true;
-    }
-
-    if (!/[a-zA-Zàèéìòù]/.test(text)) {
-        return true;
-    }
-
+    if (!text || text.length < 2) return true;
+    if (!/[a-zA-Zàèéìòù]/.test(text)) return true;
     return false;
 };
 
 const getQuantityDescription = (quantity, quantityType) => {
-    if (quantityType === 'grams') {
-        return `${quantity}g`;
-    }
-    if (quantityType === 'unit') {
-        return `${quantity} unità`;
-    }
-    if (quantityType === 'teaspoon') {
-        return `${quantity} cucchiaino`;
-    }
-    if (quantityType === 'tablespoon') {
-        return `${quantity} cucchiaio`;
-    }
+    if (quantityType === 'grams') return `${quantity}g`;
+    if (quantityType === 'unit') return `${quantity} unità`;
+    if (quantityType === 'teaspoon') return `${quantity} cucchiaino`;
+    if (quantityType === 'tablespoon') return `${quantity} cucchiaio`;
     return `${quantity} ${quantityType}`;
 };
 
@@ -61,11 +52,9 @@ const extractJsonObject = (text) => {
     const cleaned = String(text || '').replace(/```json|```/gi, '').trim();
     const firstBrace = cleaned.indexOf('{');
     const lastBrace = cleaned.lastIndexOf('}');
-
     if (firstBrace >= 0 && lastBrace > firstBrace) {
         return cleaned.slice(firstBrace, lastBrace + 1);
     }
-
     return cleaned;
 };
 
@@ -106,22 +95,13 @@ const callGeminiModel = async (model, prompt) => {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: prompt }]
-                }]
-            }),
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
             signal: controller.signal
         });
 
         const responseText = await response.text();
         let payload;
-
-        try {
-            payload = responseText ? JSON.parse(responseText) : {};
-        } catch {
-            payload = {};
-        }
+        try { payload = responseText ? JSON.parse(responseText) : {}; } catch { payload = {}; }
 
         if (!response.ok || payload?.error) {
             throw parseGeminiError(response.status || 500, payload, response.statusText);
@@ -154,14 +134,8 @@ const callGeminiModel = async (model, prompt) => {
             timeoutError.retryable = true;
             throw timeoutError;
         }
-
-        if (typeof error.retryable !== 'boolean') {
-            error.retryable = false;
-        }
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-
+        if (typeof error.retryable !== 'boolean') error.retryable = false;
+        if (!error.statusCode) error.statusCode = 500;
         throw error;
     } finally {
         clearTimeout(timeoutHandle);
@@ -170,43 +144,41 @@ const callGeminiModel = async (model, prompt) => {
 
 const callGeminiWithRetry = async (prompt) => {
     let lastError;
-
     for (const model of GEMINI_MODELS) {
         for (let attempt = 1; attempt <= GEMINI_MAX_RETRIES; attempt += 1) {
             try {
-                if (attempt > 1) {
-                    console.log(`Retry modello ${model} (tentativo ${attempt}/${GEMINI_MAX_RETRIES})`);
-                }
-
-                const data = await callGeminiModel(model, prompt);
-                return data;
+                if (attempt > 1) console.log(`Retry modello ${model} (tentativo ${attempt}/${GEMINI_MAX_RETRIES})`);
+                return await callGeminiModel(model, prompt);
             } catch (error) {
                 lastError = error;
-                const isLastAttempt = attempt === GEMINI_MAX_RETRIES;
-
                 console.error(`Errore Gemini su ${model} (tentativo ${attempt}/${GEMINI_MAX_RETRIES}):`, error.message);
-
-                if (!error.retryable) {
-                    break;
-                }
-
-                if (!isLastAttempt) {
-                    const backoffMs = Math.min(1500 * attempt, 4000);
-                    await sleep(backoffMs);
+                if (!error.retryable) break;
+                if (attempt < GEMINI_MAX_RETRIES) {
+                    await sleep(Math.min(1500 * attempt, 4000));
                 }
             }
         }
     }
-
     throw lastError || new Error('Richiesta Gemini fallita senza dettagli.');
 };
- 
-app.post('/api/analyze', async (req, res) => {
-    const { meal, quantity, quantityType } = req.body || {};
-    console.log(`--- Richiesta ricevuta: ${quantity} ${quantityType} di ${meal} ---`);
+
+exports.handler = async (event) => {
+    if (event.httpMethod === 'OPTIONS') {
+        return { statusCode: 204, headers: CORS_HEADERS, body: '' };
+    }
+
+    if (event.httpMethod !== 'POST') {
+        return reply(405, { error: 'Method not allowed' });
+    }
+
+    let parsedBody = {};
+    try { parsedBody = JSON.parse(event.body || '{}'); } catch { parsedBody = {}; }
+
+    const { meal, quantity, quantityType } = parsedBody;
+    console.log(`--- Richiesta: ${quantity} ${quantityType} di ${meal} ---`);
 
     if (!API_KEY) {
-        return res.status(500).json({ error: 'GEMINI_API_KEY mancante nel backend.' });
+        return reply(500, { error: 'GEMINI_API_KEY mancante nel backend.' });
     }
 
     const numericQuantity = Number(quantity);
@@ -214,30 +186,30 @@ app.post('/api/analyze', async (req, res) => {
     const cleanedQuantityType = String(quantityType || '').trim();
 
     if (!cleanedMeal || !Number.isFinite(numericQuantity) || numericQuantity <= 0 || !cleanedQuantityType) {
-        return res.status(400).json({ error: 'Input non valido. Controlla meal, quantity e quantityType.' });
+        return reply(400, { error: 'Input non valido. Controlla meal, quantity e quantityType.' });
     }
 
     if (isClearlyInvalidMeal(cleanedMeal)) {
-        return res.status(400).json({ error: 'invalid_food' });
+        return reply(400, { error: 'invalid_food' });
     }
 
     const requestKey = buildRequestKey(cleanedMeal, numericQuantity, cleanedQuantityType);
     const cached = responseCache.get(requestKey);
     if (cached && cached.expiresAt > Date.now()) {
         console.log(`Cache hit: ${requestKey}`);
-        return res.json(cached.data);
+        return reply(200, cached.data);
     }
 
     if (inFlightRequests.has(requestKey)) {
         console.log(`Deduplica richiesta in corso: ${requestKey}`);
         try {
             const inFlightData = await inFlightRequests.get(requestKey);
-            return res.json(inFlightData);
+            return reply(200, inFlightData);
         } catch (error) {
-            return res.status(error.statusCode || 500).json({ error: error.message });
+            return reply(error.statusCode || 500, { error: error.message });
         }
     }
- 
+
     try {
         const quantityDesc = getQuantityDescription(numericQuantity, cleanedQuantityType);
         const prompt = buildPrompt(cleanedMeal, quantityDesc);
@@ -248,36 +220,23 @@ app.post('/api/analyze', async (req, res) => {
         const finalData = await requestPromise;
 
         if (finalData?.error === 'invalid_food') {
-            return res.status(400).json({ error: 'invalid_food' });
+            return reply(400, { error: 'invalid_food' });
         }
 
-        responseCache.set(requestKey, {
-            data: finalData,
-            expiresAt: Date.now() + CACHE_TTL_MS
-        });
-
-        console.log("Risposta ottenuta con successo:", finalData);
+        responseCache.set(requestKey, { data: finalData, expiresAt: Date.now() + CACHE_TTL_MS });
         console.log(`--- Risposta inviata: ${JSON.stringify(finalData)} ---`);
-        res.json(finalData);
+        return reply(200, finalData);
     } catch (error) {
-        console.error("Errore nel server:", error.message);
+        console.error('Errore nella function:', error.message);
         const statusCode = error.statusCode || 500;
         if (statusCode === 429 || statusCode === 503 || statusCode === 504) {
-            return res.status(503).json({ error: 'Servizio AI temporaneamente sovraccarico. Riprova tra pochi secondi.' });
+            return reply(503, { error: 'Servizio AI temporaneamente sovraccarico. Riprova tra pochi secondi.' });
         }
-
         if (statusCode === 401 || statusCode === 403) {
-            return res.status(502).json({ error: 'Chiave API Gemini non valida o senza permessi.' });
+            return reply(502, { error: 'Chiave API Gemini non valida o senza permessi.' });
         }
-
-        return res.status(statusCode).json({ error: error.message || "Errore durante l'analisi del cibo." });
+        return reply(statusCode, { error: error.message || "Errore durante l'analisi del cibo." });
     } finally {
         inFlightRequests.delete(requestKey);
     }
-});
- 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Server in ascolto sulla porta ${PORT}`);
-    console.log(`API Gemini pronta per l'analisi dei pasti.`);
-});
+};
