@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from './supabaseClient'; // Importazione del client Supabase
+import { supabase } from './supabaseClient';
 import Sidebar from './components/Layout/Sidebar';
 import DayCard from './components/Calculator/DayCard';
 import DishModal from './components/Modals/DishModal';
@@ -10,7 +10,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const App = ({ user, onSignOut }) => {
   const [meal, setMeal] = useState('');
-  const [quantityType, setQuantityType] = useState('grams'); // 'grams', 'unit', 'teaspoon'
+  const [quantityType, setQuantityType] = useState('grams');
   const [quantity, setQuantity] = useState('');
   const [category, setCategory] = useState('Colazione');
   const [logs, setLogs] = useState([]);
@@ -25,10 +25,8 @@ const App = ({ user, onSignOut }) => {
   const [modalLoading, setModalLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [editingDishId, setEditingDishId] = useState(null);
-  
-  // --- NUOVI STATI PER MENU E OBIETTIVI ---
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [currentView, setCurrentView] = useState('calculator'); // 'calculator' o 'goals'
+  const [currentView, setCurrentView] = useState('calculator');
   const [syncLoading, setSyncLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [goals, setGoals] = useState({
@@ -58,9 +56,7 @@ const App = ({ user, onSignOut }) => {
   const fetchNutritionFromApi = useCallback(async (foodName, qty, qtyType) => {
     const key = getAnalyzeKey(foodName, qty, qtyType);
     const pending = pendingApiRequestsRef.current.get(key);
-    if (pending) {
-      return pending;
-    }
+    if (pending) return pending;
 
     const requestPromise = (async () => {
       const response = await fetch(`${API_BASE_URL}/analyze`, {
@@ -72,17 +68,12 @@ const App = ({ user, onSignOut }) => {
           quantityType: qtyType
         })
       });
-
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || `Errore API: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(payload?.error || `Errore API: ${response.status}`);
       return payload;
     })();
 
     pendingApiRequestsRef.current.set(key, requestPromise);
-
     try {
       return await requestPromise;
     } finally {
@@ -90,75 +81,101 @@ const App = ({ user, onSignOut }) => {
     }
   }, [getAnalyzeKey]);
 
-  // Cerca un cibo già presente nei dati Supabase caricati e ricalcola i macro sulla nuova quantità.
-  const findExistingNutrients = useCallback((foodName, quantityType, quantity) => {
+  // Cerca il cibo nella food library in memoria (logs già caricati).
+  // Ricalcola i macro sulla nuova quantità usando i valori per-unità da foods.
+  const findExistingNutrients = useCallback((foodName, qty_type, quantity) => {
     const normalizedSearch = foodName.trim().toLowerCase();
-    const normalizedQuantityType = (quantityType || '').trim().toLowerCase();
+    const normalizedQT = (qty_type || '').trim().toLowerCase();
     const targetQuantity = Number(quantity);
 
-    if (!normalizedSearch || !Number.isFinite(targetQuantity) || targetQuantity <= 0) {
-      return null;
-    }
+    if (!normalizedSearch || !Number.isFinite(targetQuantity) || targetQuantity <= 0) return null;
 
-    const round1 = (value) => Math.round(value * 10) / 10;
+    const round1 = (v) => Math.round(v * 10) / 10;
 
     for (const log of logs) {
       const dishes = Array.isArray(log.dishes) ? log.dishes : [];
-
       for (const dish of dishes) {
-        const dishFood = (dish.food || '').trim().toLowerCase();
-        const dishQuantityType = (dish.quantityType || '').trim().toLowerCase();
+        if ((dish.food || '').trim().toLowerCase() !== normalizedSearch) continue;
+        if ((dish.quantityType || '').trim().toLowerCase() !== normalizedQT) continue;
 
-        if (dishFood !== normalizedSearch || dishQuantityType !== normalizedQuantityType) {
-          continue;
-        }
+        const cpU = Number(dish.caloriesPerUnit) || 0;
+        const ppU = Number(dish.proteinPerUnit) || 0;
+        const crpU = Number(dish.carbsPerUnit) || 0;
+        const fpU = Number(dish.fatPerUnit) || 0;
 
-        const storedQuantity = Number(dish.quantity);
-        if (!Number.isFinite(storedQuantity) || storedQuantity <= 0) {
-          continue;
-        }
-
-        // Per robustezza usiamo i macro reali salvati nel record e ricaviamo i valori per 1 unità di quantityType.
-        const caloriesPerUnit = Number(dish.calories || 0) / storedQuantity;
-        const proteinPerUnit = Number(dish.protein || 0) / storedQuantity;
-        const carbsPerUnit = Number(dish.carbs || 0) / storedQuantity;
-        const fatPerUnit = Number(dish.fat || 0) / storedQuantity;
+        if (cpU <= 0) continue;
 
         return {
           food: dish.food,
-          grams: normalizedQuantityType === 'grams' ? targetQuantity : Number(dish.grams) || 0,
-          calories: Math.round(caloriesPerUnit * targetQuantity),
-          protein: round1(proteinPerUnit * targetQuantity),
-          carbs: round1(carbsPerUnit * targetQuantity),
-          fat: round1(fatPerUnit * targetQuantity),
-          caloriesPerUnit,
-          proteinPerUnit,
-          carbsPerUnit,
-          fatPerUnit
+          grams: normalizedQT === 'grams' ? targetQuantity : Number(dish.grams) || 0,
+          calories: Math.round(cpU * targetQuantity),
+          protein: round1(ppU * targetQuantity),
+          carbs: round1(crpU * targetQuantity),
+          fat: round1(fpU * targetQuantity),
+          caloriesPerUnit: cpU,
+          proteinPerUnit: ppU,
+          carbsPerUnit: crpU,
+          fatPerUnit: fpU,
         };
       }
     }
-
     return null;
   }, [logs]);
+
+  // Normalizza il risultato della query Supabase (meals + meal_items + foods)
+  // nel formato { ...meal, dishes: [...] } usato dai componenti.
+  const normalizeMeals = useCallback((data) => {
+    return (data || []).map(meal => ({
+      ...meal,
+      dishes: (meal.meal_items || [])
+        .sort((a, b) => a.position - b.position)
+        .map(item => ({
+          id: item.id,
+          food: item.foods?.name ?? '',
+          food_id: item.food_id,
+          grams: Number(item.grams) || 0,
+          quantityType: item.quantity_type,
+          quantity: Number(item.quantity) || 0,
+          calories: Number(item.calories) || 0,
+          protein: Number(item.protein) || 0,
+          carbs: Number(item.carbs) || 0,
+          fat: Number(item.fat) || 0,
+          caloriesPerUnit: Number(item.foods?.calories_per_unit) || 0,
+          proteinPerUnit: Number(item.foods?.protein_per_unit) || 0,
+          carbsPerUnit: Number(item.foods?.carbs_per_unit) || 0,
+          fatPerUnit: Number(item.foods?.fat_per_unit) || 0,
+        })),
+    }));
+  }, []);
 
   const fetchLogs = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('meals')
-        .select('*')
+        .select(`
+          id, category, date, created_at,
+          meal_items (
+            id, position, quantity, quantity_type, grams,
+            calories, protein, carbs, fat, food_id,
+            foods (
+              id, name, default_quantity_type,
+              calories_per_unit, protein_per_unit,
+              carbs_per_unit, fat_per_unit
+            )
+          )
+        `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
         console.error('❌ Errore caricamento meals:', error);
       } else {
-        setLogs(data || []);
+        setLogs(normalizeMeals(data));
       }
     } catch (err) {
       console.error('❌ Eccezione durante caricamento:', err);
     }
-  }, [user.id]);
+  }, [user.id, normalizeMeals]);
 
   const fetchGoals = useCallback(async () => {
     const { data, error } = await supabase
@@ -178,7 +195,6 @@ const App = ({ user, onSignOut }) => {
         fat: data.fat || 70
       });
     } else {
-      // Prima volta: crea la riga di default per questo utente
       const defaultGoals = { user_id: user.id, calories: 2000, protein: 150, carbs: 250, fat: 70 };
       const { error: insertError } = await supabase.from('goals').insert(defaultGoals);
       if (insertError) console.error('❌ Errore inizializzazione goals:', insertError.message);
@@ -186,25 +202,17 @@ const App = ({ user, onSignOut }) => {
     }
   }, [user.id]);
 
-  // 1. CARICAMENTO DATI PASTI DA SUPABASE
   useEffect(() => {
     let isMounted = true;
-
     const bootstrapApp = async () => {
       try {
         await Promise.all([fetchLogs(), fetchGoals()]);
       } finally {
-        if (isMounted) {
-          setInitialLoading(false);
-        }
+        if (isMounted) setInitialLoading(false);
       }
     };
-
     bootstrapApp();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [fetchLogs, fetchGoals]);
 
   const handleSyncWithSupabase = useCallback(async () => {
@@ -218,134 +226,131 @@ const App = ({ user, onSignOut }) => {
   }, [fetchLogs, fetchGoals]);
 
   useEffect(() => {
-    if (initialLoading || syncLoading || currentView !== 'calculator') {
-      return;
-    }
-
+    if (initialLoading || syncLoading || currentView !== 'calculator') return;
     const scrollTimer = setTimeout(() => {
-      todayButtonRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center'
-      });
+      todayButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }, 120);
-
     return () => clearTimeout(scrollTimer);
   }, [initialLoading, syncLoading, currentView]);
 
-  // --- FUNZIONI PER GESTIRE GLI OBIETTIVI ---
   const handleUpdateGoal = useCallback((macro, value) => {
     setGoals(prev => ({ ...prev, [macro]: Number(value) }));
   }, []);
 
   const saveGoalsToDB = useCallback(async () => {
-    const payload = {
-      user_id: user.id,
-      calories: goals.calories,
-      protein: goals.protein,
-      carbs: goals.carbs,
-      fat: goals.fat,
-      updated_at: new Date().toISOString(),
-    };
-
     const { error } = await supabase
       .from('goals')
-      .upsert(payload, { onConflict: 'user_id' });
-
-    if (error) {
-      console.error("Errore salvataggio obiettivi:", error.message);
-    }
+      .upsert({
+        user_id: user.id,
+        calories: goals.calories,
+        protein: goals.protein,
+        carbs: goals.carbs,
+        fat: goals.fat,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+    if (error) console.error("Errore salvataggio obiettivi:", error.message);
   }, [goals, user.id]);
 
-  // --- LOGICA AGGIUNTA PASTI E PIATTI ---
+  // Costruisce l'oggetto dati nutrizionali dal risultato API o dall'esistente in memoria.
+  const buildNutritionData = useCallback((source, qty, qtyType) => {
+    const currentQuantity = parseFloat(qty);
+    if ('caloriesPerUnit' in source) {
+      // Proveniente da findExistingNutrients: già ha i perUnit
+      return source;
+    }
+    // Proveniente dall'API Gemini
+    return {
+      food: (source.food || '').toLowerCase().trim(),
+      grams: Number(source.grams) || (qtyType === 'grams' ? currentQuantity : 0),
+      calories: Number(source.calories) || 0,
+      protein: Number(source.protein) || 0,
+      carbs: Number(source.carbs) || 0,
+      fat: Number(source.fat) || 0,
+      caloriesPerUnit: (Number(source.calories) || 0) / currentQuantity,
+      proteinPerUnit: (Number(source.protein) || 0) / currentQuantity,
+      carbsPerUnit: (Number(source.carbs) || 0) / currentQuantity,
+      fatPerUnit: (Number(source.fat) || 0) / currentQuantity,
+    };
+  }, []);
 
+  // Upsert in foods e ritorna il record. Il nome viene normalizzato in minuscolo.
+  const upsertFood = useCallback(async (nutritionData, qtyType) => {
+    const foodName = (nutritionData.food || '').toLowerCase().trim();
+    const { data, error } = await supabase
+      .from('foods')
+      .upsert({
+        user_id: user.id,
+        name: foodName,
+        default_quantity_type: qtyType,
+        calories_per_unit: nutritionData.caloriesPerUnit,
+        protein_per_unit: nutritionData.proteinPerUnit,
+        carbs_per_unit: nutritionData.carbsPerUnit,
+        fat_per_unit: nutritionData.fatPerUnit,
+      }, { onConflict: 'user_id,name,default_quantity_type' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }, [user.id]);
 
   const handleAddMeal = async () => {
     if (!meal.trim() || !quantity || isNaN(quantity) || quantity <= 0) {
-      alert("Inserisci un cibo valido e una quantità positiva!");
-      return;
+      alert("Inserisci un cibo valido e una quantità positiva!"); return;
     }
     if (selectedDate > getTodayDate()) {
-      alert("Non puoi aggiungere pasti a giorni futuri!");
-      return;
+      alert("Non puoi aggiungere pasti a giorni futuri!"); return;
     }
 
     setLoading(true);
     try {
-      let data;
       const existing = findExistingNutrients(meal, quantityType, quantity);
-
+      let nutritionData;
       if (existing && existing.calories > 0) {
-        // Usa i macro ricalcolati dal cibo esistente
-        data = {
-          food: existing.food,
-          grams: existing.grams,
-          calories: existing.calories,
-          protein: existing.protein,
-          carbs: existing.carbs,
-          fat: existing.fat,
-          caloriesPerUnit: existing.caloriesPerUnit,
-          proteinPerUnit: existing.proteinPerUnit,
-          carbsPerUnit: existing.carbsPerUnit,
-          fatPerUnit: existing.fatPerUnit
-        };
+        nutritionData = existing;
       } else {
-        // Nuovo cibo: chiama l'API
         const apiData = await fetchNutritionFromApi(meal.trim(), quantity, quantityType);
-
-        // Calcola i macro per 1 unità del quantityType corrente (1g, 1 unità, 1 cucchiaino, ...)
-        const currentQuantity = parseFloat(quantity);
-        data = {
-          food: apiData.food || meal.trim(),
-          grams: Number(apiData.grams) || (quantityType === 'grams' ? currentQuantity : 0),
-          calories: Number(apiData.calories) || 0,
-          protein: Number(apiData.protein) || 0,
-          carbs: Number(apiData.carbs) || 0,
-          fat: Number(apiData.fat) || 0,
-          caloriesPerUnit: (Number(apiData.calories) || 0) / currentQuantity,
-          proteinPerUnit: (Number(apiData.protein) || 0) / currentQuantity,
-          carbsPerUnit: (Number(apiData.carbs) || 0) / currentQuantity,
-          fatPerUnit: (Number(apiData.fat) || 0) / currentQuantity
-        };
+        nutritionData = buildNutritionData(apiData, quantity, quantityType);
       }
 
-      const newDish = {
-        id: Date.now() + Math.random(),
-        food: data.food,
-        grams: Number(data.grams) || 0,
-        quantityType,
-        quantity: parseFloat(quantity),
-        calories: data.calories,
-        protein: data.protein,
-        carbs: data.carbs,
-        fat: data.fat,
-        caloriesPerUnit: data.caloriesPerUnit,
-        proteinPerUnit: data.proteinPerUnit,
-        carbsPerUnit: data.carbsPerUnit,
-        fatPerUnit: data.fatPerUnit
-      };
+      const foodRecord = await upsertFood(nutritionData, quantityType);
 
+      // Trova o crea la meal card
+      let mealId;
       if (targetCardId) {
-        const targetCard = logs.find(c => c.id === targetCardId);
-        const updatedDishes = [...targetCard.dishes, newDish];
-        const { error } = await supabase.from('meals').update({ dishes: updatedDishes }).eq('id', targetCardId);
-        if (error) throw error;
-        setLogs((prev) => prev.map((card) => card.id === targetCardId ? { ...card, dishes: updatedDishes } : card));
+        mealId = targetCardId;
       } else {
-        const existingMealCard = logs.find(c => c.category === category && c.date === selectedDate);
-        if (existingMealCard) {
-          const updatedDishes = [...existingMealCard.dishes, newDish];
-          const { error } = await supabase.from('meals').update({ dishes: updatedDishes }).eq('id', existingMealCard.id);
-          if (error) throw error;
-          setLogs((prev) => prev.map((card) => card.id === existingMealCard.id ? { ...card, dishes: updatedDishes } : card));
+        const existingCard = logs.find(c => c.category === category && c.date === selectedDate);
+        if (existingCard) {
+          mealId = existingCard.id;
         } else {
-          const newCard = { category, dishes: [newDish], date: selectedDate, user_id: user.id };
-          const { data: insertedData, error } = await supabase.from('meals').insert([newCard]).select();
-          if (error) throw error;
-          setLogs((prev) => [insertedData[0], ...prev]);
+          const { data: newCard, error: cardError } = await supabase
+            .from('meals')
+            .insert([{ category, date: selectedDate, user_id: user.id }])
+            .select()
+            .single();
+          if (cardError) throw cardError;
+          mealId = newCard.id;
         }
       }
 
+      const targetCard = logs.find(c => c.id === mealId);
+      const position = targetCard ? (targetCard.dishes?.length || 0) : 0;
+
+      const { error: itemError } = await supabase.from('meal_items').insert({
+        meal_id: mealId,
+        food_id: foodRecord.id,
+        quantity: parseFloat(quantity),
+        quantity_type: quantityType,
+        grams: nutritionData.grams,
+        calories: nutritionData.calories,
+        protein: nutritionData.protein,
+        carbs: nutritionData.carbs,
+        fat: nutritionData.fat,
+        position,
+      });
+      if (itemError) throw itemError;
+
+      await fetchLogs();
       setMeal(''); setQuantity(''); setTargetCardId(null); setQuantityType('grams');
       if (mealInputRef.current) mealInputRef.current.focus();
     } catch (error) {
@@ -365,86 +370,53 @@ const App = ({ user, onSignOut }) => {
 
     setModalLoading(true);
     try {
-      let data;
       const existing = findExistingNutrients(modalMeal, modalQuantityType, modalQuantity);
-
+      let nutritionData;
       if (existing && existing.calories > 0) {
-        // Usa i macro ricalcolati dal cibo esistente
-        data = {
-          food: existing.food,
-          grams: existing.grams,
-          calories: existing.calories,
-          protein: existing.protein,
-          carbs: existing.carbs,
-          fat: existing.fat,
-          caloriesPerUnit: existing.caloriesPerUnit,
-          proteinPerUnit: existing.proteinPerUnit,
-          carbsPerUnit: existing.carbsPerUnit,
-          fatPerUnit: existing.fatPerUnit
-        };
+        nutritionData = existing;
       } else {
-        // Nuovo cibo: chiama l'API
         const apiData = await fetchNutritionFromApi(modalMeal.trim(), modalQuantity, modalQuantityType);
-
-        // Calcola i macro per 1 unità del quantityType corrente (1g, 1 unità, 1 cucchiaino, ...)
-        const currentQuantity = parseFloat(modalQuantity);
-        data = {
-          food: apiData.food || modalMeal.trim(),
-          grams: Number(apiData.grams) || (modalQuantityType === 'grams' ? currentQuantity : 0),
-          calories: Number(apiData.calories) || 0,
-          protein: Number(apiData.protein) || 0,
-          carbs: Number(apiData.carbs) || 0,
-          fat: Number(apiData.fat) || 0,
-          caloriesPerUnit: (Number(apiData.calories) || 0) / currentQuantity,
-          proteinPerUnit: (Number(apiData.protein) || 0) / currentQuantity,
-          carbsPerUnit: (Number(apiData.carbs) || 0) / currentQuantity,
-          fatPerUnit: (Number(apiData.fat) || 0) / currentQuantity
-        };
+        nutritionData = buildNutritionData(apiData, modalQuantity, modalQuantityType);
       }
 
-      const targetCard = logs.find(c => c.id === modalCardId);
-      let updatedDishes;
+      const foodRecord = await upsertFood(nutritionData, modalQuantityType);
 
       if (editingDishId) {
-        // Modifica piatto esistente
-        updatedDishes = targetCard.dishes.map(d => d.id === editingDishId ? {
-            ...d,
-            food: data.food,
-            grams: Number(data.grams) || 0,
-            quantityType: modalQuantityType,
+        // Modifica meal_item esistente (editingDishId è l'UUID di meal_items)
+        const { error } = await supabase
+          .from('meal_items')
+          .update({
+            food_id: foodRecord.id,
             quantity: parseFloat(modalQuantity),
-            calories: data.calories,
-            protein: data.protein,
-            carbs: data.carbs,
-            fat: data.fat,
-            caloriesPerUnit: data.caloriesPerUnit,
-            proteinPerUnit: data.proteinPerUnit,
-            carbsPerUnit: data.carbsPerUnit,
-            fatPerUnit: data.fatPerUnit
-          } : d);
+            quantity_type: modalQuantityType,
+            grams: nutritionData.grams,
+            calories: nutritionData.calories,
+            protein: nutritionData.protein,
+            carbs: nutritionData.carbs,
+            fat: nutritionData.fat,
+          })
+          .eq('id', editingDishId);
+        if (error) throw error;
       } else {
-        // Nuovo piatto
-        const newDish = {
-          id: Date.now() + Math.random(),
-          food: data.food,
-          grams: Number(data.grams) || 0,
-          quantityType: modalQuantityType,
+        // Nuovo piatto nella card esistente
+        const targetCard = logs.find(c => c.id === modalCardId);
+        const position = targetCard ? (targetCard.dishes?.length || 0) : 0;
+        const { error } = await supabase.from('meal_items').insert({
+          meal_id: modalCardId,
+          food_id: foodRecord.id,
           quantity: parseFloat(modalQuantity),
-          calories: data.calories,
-          protein: data.protein,
-          carbs: data.carbs,
-          fat: data.fat,
-          caloriesPerUnit: data.caloriesPerUnit,
-          proteinPerUnit: data.proteinPerUnit,
-          carbsPerUnit: data.carbsPerUnit,
-          fatPerUnit: data.fatPerUnit
-        };
-        updatedDishes = [...targetCard.dishes, newDish];
+          quantity_type: modalQuantityType,
+          grams: nutritionData.grams,
+          calories: nutritionData.calories,
+          protein: nutritionData.protein,
+          carbs: nutritionData.carbs,
+          fat: nutritionData.fat,
+          position,
+        });
+        if (error) throw error;
       }
 
-      const { error } = await supabase.from('meals').update({ dishes: updatedDishes }).eq('id', modalCardId);
-      if (error) throw error;
-      setLogs((prev) => prev.map((card) => card.id === modalCardId ? { ...card, dishes: updatedDishes } : card));
+      await fetchLogs();
       closeModal();
     } catch (error) {
       alert(`Errore: ${error.message}`);
@@ -453,12 +425,15 @@ const App = ({ user, onSignOut }) => {
     }
   };
 
-  // ... (Tutte le funzioni di cancellazione rimangono identiche)
   const clearLogs = async () => {
-    if(window.confirm("Sei sicuro di voler cancellare tutti i pasti del giorno selezionato? Questa operazione è irreversibile.")) {
-      const { error } = await supabase.from('meals').delete().eq('date', selectedDate);
+    if (window.confirm("Sei sicuro di voler cancellare tutti i pasti del giorno selezionato? Questa operazione è irreversibile.")) {
+      const { error } = await supabase
+        .from('meals')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('date', selectedDate);
       if (!error) {
-        setLogs((prev) => prev.filter((card) => card.date !== selectedDate));
+        setLogs(prev => prev.filter(card => card.date !== selectedDate));
       } else {
         alert("Errore durante la cancellazione");
       }
@@ -466,44 +441,59 @@ const App = ({ user, onSignOut }) => {
   };
 
   const handleAddAnotherDish = (cardId, entryCategory) => {
-    setModalCardId(cardId); setModalCardCategory(entryCategory); setModalMeal(''); setModalQuantity(''); setModalQuantityType('grams'); setEditingDishId(null); setShowDishModal(true);
+    setModalCardId(cardId); setModalCardCategory(entryCategory);
+    setModalMeal(''); setModalQuantity(''); setModalQuantityType('grams');
+    setEditingDishId(null); setShowDishModal(true);
   };
 
   const handleEditDish = (cardId, dish) => {
-    setModalCardId(cardId); setModalMeal(dish.food); setModalQuantity(dish.quantity.toString()); setModalQuantityType(dish.quantityType); setEditingDishId(dish.id); setShowDishModal(true);
+    setModalCardId(cardId);
+    setModalMeal(dish.food);
+    setModalQuantity(dish.quantity.toString());
+    setModalQuantityType(dish.quantityType);
+    setEditingDishId(dish.id); // dish.id è l'UUID di meal_items
+    setShowDishModal(true);
   };
 
   const closeModal = () => {
-    setShowDishModal(false); setModalCardId(null); setModalCardCategory(''); setModalMeal(''); setModalQuantity(''); setModalQuantityType('grams'); setEditingDishId(null); setModalLoading(false);
+    setShowDishModal(false); setModalCardId(null); setModalCardCategory('');
+    setModalMeal(''); setModalQuantity(''); setModalQuantityType('grams');
+    setEditingDishId(null); setModalLoading(false);
   };
 
   const handleRemoveCard = async (cardId) => {
     if (!window.confirm("Sei sicuro di voler eliminare questa card pasto?")) return;
     const { error } = await supabase.from('meals').delete().eq('id', cardId);
-    if (!error) setLogs((prev) => prev.filter((card) => card.id !== cardId)); else alert("Errore durante l'eliminazione");
+    if (!error) {
+      setLogs(prev => prev.filter(card => card.id !== cardId));
+    } else {
+      alert("Errore durante l'eliminazione");
+    }
   };
 
   const handleRemoveDish = async (cardId, dishId) => {
+    // dishId è l'UUID di meal_items
     if (!window.confirm("Sei sicuro di voler eliminare questo piatto?")) return;
     const card = logs.find(c => c.id === cardId);
-    const reducedDishes = card.dishes.filter((dish) => dish.id !== dishId);
 
-    if (reducedDishes.length === 0) {
-      // Il piatto è l'unico nella card: elimina direttamente il pasto senza una seconda conferma.
+    if (card?.dishes?.length === 1) {
+      // Ultimo piatto: elimina l'intera card (meal_items eliminati in cascade)
       const { error } = await supabase.from('meals').delete().eq('id', cardId);
       if (!error) {
-        setLogs((prev) => prev.filter((c) => c.id !== cardId));
+        setLogs(prev => prev.filter(c => c.id !== cardId));
       } else {
         alert("Errore durante l'eliminazione");
       }
-    }
-    else {
-      const { error } = await supabase.from('meals').update({ dishes: reducedDishes }).eq('id', cardId);
-      if (!error) setLogs((prev) => prev.map((c) => c.id === cardId ? { ...c, dishes: reducedDishes } : c)); else alert("Errore durante l'aggiornamento");
+    } else {
+      const { error } = await supabase.from('meal_items').delete().eq('id', dishId);
+      if (!error) {
+        await fetchLogs();
+      } else {
+        alert("Errore durante l'aggiornamento");
+      }
     }
   };
 
-  // Calcolo dei totali giornalieri per le barre di progresso
   const dailyTotals = useMemo(() => dailyLogs.reduce((acc, card) => {
     const dishes = Array.isArray(card.dishes) ? card.dishes : [];
     const cardTotals = dishes.reduce((cAcc, dish) => ({
@@ -512,7 +502,6 @@ const App = ({ user, onSignOut }) => {
       carbs: cAcc.carbs + (Number(dish.carbs) || 0),
       fat: cAcc.fat + (Number(dish.fat) || 0),
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-
     return {
       calories: acc.calories + cardTotals.calories,
       protein: acc.protein + cardTotals.protein,
@@ -521,24 +510,17 @@ const App = ({ user, onSignOut }) => {
     };
   }, { calories: 0, protein: 0, carbs: 0, fat: 0 }), [dailyLogs]);
 
-  if (initialLoading) {
-    return <LoadingScreen message="Caricamento dati in corso..." />;
-  }
-
-  if (syncLoading) {
-    return <LoadingScreen message="Sincronizzazione in corso..." />;
-  }
+  if (initialLoading) return <LoadingScreen message="Caricamento dati in corso..." />;
+  if (syncLoading) return <LoadingScreen message="Sincronizzazione in corso..." />;
 
   return (
     <div className="min-h-screen bg-slate-950 relative overflow-hidden text-white">
-      {/* Animated background elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute top-0 right-0 w-96 h-96 bg-violet-600 rounded-full mix-blend-multiply opacity-10 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply opacity-10 blur-3xl"></div>
       </div>
 
-      {/* PULSANTE HAMBURGER MENU SEMPRE FISSO IN ALTO */}
-      <button 
+      <button
         onClick={() => setIsSidebarOpen(true)}
         className="fixed top-0 left-0 z-50 p-3 mt-2 ml-2 bg-slate-900 border border-violet-700 border-opacity-50 rounded-xl text-white hover:bg-slate-800 transition-all shadow-lg shadow-violet-500/20"
         style={{ position: 'fixed', top: 0, left: 0 }}
@@ -551,7 +533,6 @@ const App = ({ user, onSignOut }) => {
         </div>
       </button>
 
-      {/* SIDEBAR LATERALE */}
       <Sidebar
         isSidebarOpen={isSidebarOpen}
         setIsSidebarOpen={setIsSidebarOpen}
@@ -563,11 +544,9 @@ const App = ({ user, onSignOut }) => {
         userEmail={user.email}
       />
 
-      {/* CONTENITORE PRINCIPALE */}
       <div className="relative z-10 min-h-screen p-2 pt-16 md:p-8 md:pt-8 font-sans">
         <div className="max-w-full md:max-w-4xl mx-auto">
-          
-          {/* HEADER COMUNE AD ENTRAMBE LE PAGINE */}
+
           <header className="mb-8 text-center">
             <div className="inline-block mb-2">
               <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600 leading-tight">Calories Calculator</h1>
@@ -575,9 +554,7 @@ const App = ({ user, onSignOut }) => {
             </div>
           </header>
 
-          {/* RENDER CONDIZIONALE DELLE PAGINE */}
           {currentView === 'goals' ? (
-            /* --- PAGINA MIEI OBIETTIVI --- */
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <h2 className="text-3xl font-bold mb-8 text-white flex items-center gap-3 justify-center">
                 <span>🎯</span> Imposta i tuoi Obiettivi
@@ -585,28 +562,26 @@ const App = ({ user, onSignOut }) => {
               <p className="text-center text-gray-400 mb-8 max-w-lg mx-auto">
                 Modifica i valori qui sotto. Le percentuali nella pagina principale si aggiorneranno automaticamente. I dati verranno salvati quando clicchi fuori dal riquadro.
               </p>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-                <EditableStatCard 
+                <EditableStatCard
                   label="Obiettivo Calorie" value={goals.calories} unit="kcal" icon="🔥" gradient="from-orange-500 to-red-600"
                   onChange={(e) => handleUpdateGoal('calories', e.target.value)} onBlur={saveGoalsToDB}
                 />
-                <EditableStatCard 
+                <EditableStatCard
                   label="Obiettivo Proteine" value={goals.protein} unit="g" icon="🥩" gradient="from-blue-500 to-cyan-600"
                   onChange={(e) => handleUpdateGoal('protein', e.target.value)} onBlur={saveGoalsToDB}
                 />
-                <EditableStatCard 
+                <EditableStatCard
                   label="Obiettivo Carboidrati" value={goals.carbs} unit="g" icon="🌾" gradient="from-yellow-400 to-orange-500"
                   onChange={(e) => handleUpdateGoal('carbs', e.target.value)} onBlur={saveGoalsToDB}
                 />
-                <EditableStatCard 
+                <EditableStatCard
                   label="Obiettivo Grassi" value={goals.fat} unit="g" icon="🥑" gradient="from-green-400 to-emerald-600"
                   onChange={(e) => handleUpdateGoal('fat', e.target.value)} onBlur={saveGoalsToDB}
                 />
               </div>
             </div>
           ) : (
-            /* --- PAGINA PRINCIPALE: CALORIES CALCULATOR --- */
             <div className="animate-in fade-in duration-500">
               <DayCard
                 selectedDate={selectedDate}
@@ -638,7 +613,6 @@ const App = ({ user, onSignOut }) => {
         </div>
       </div>
 
-      {/* MODALE PER AGGIUNGERE/MODIFICARE PIATTI (Visibile in entrambe le viste se attivato) */}
       <DishModal
         showDishModal={showDishModal}
         closeModal={closeModal}
@@ -657,7 +631,5 @@ const App = ({ user, onSignOut }) => {
     </div>
   );
 };
-
-// --- COMPONENTI ACCESSORI AGGIORNATI ---
 
 export default App;
