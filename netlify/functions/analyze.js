@@ -92,7 +92,7 @@ const parseGeminiError = (statusCode, payload, fallbackMessage) => {
 };
 
 const callGeminiModel = async (model, prompt, apiKey) => {
-    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const controller = new AbortController();
     const timeoutHandle = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
@@ -109,6 +109,7 @@ const callGeminiModel = async (model, prompt, apiKey) => {
         try { payload = responseText ? JSON.parse(responseText) : {}; } catch { payload = {}; }
 
         if (!response.ok || payload?.error) {
+            console.error(`Gemini HTTP ${response.status} su ${model}:`, JSON.stringify(payload?.error || payload));
             throw parseGeminiError(response.status || 500, payload, response.statusText);
         }
 
