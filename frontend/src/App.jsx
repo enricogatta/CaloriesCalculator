@@ -494,6 +494,21 @@ const App = ({ user, onSignOut }) => {
     }
   };
 
+  // Lista cibi unici dell'utente, derivata dai logs già caricati — nessuna query extra.
+  const userFoods = useMemo(() => {
+    const seen = new Map();
+    for (const log of logs) {
+      for (const dish of (log.dishes || [])) {
+        if (!dish.food) continue;
+        const key = `${dish.food}|${dish.quantityType}`;
+        if (!seen.has(key)) {
+          seen.set(key, { name: dish.food, default_quantity_type: dish.quantityType });
+        }
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [logs]);
+
   const dailyTotals = useMemo(() => dailyLogs.reduce((acc, card) => {
     const dishes = Array.isArray(card.dishes) ? card.dishes : [];
     const cardTotals = dishes.reduce((cAcc, dish) => ({
@@ -607,6 +622,7 @@ const App = ({ user, onSignOut }) => {
                 onDeleteMeal={handleRemoveCard}
                 onAddDish={handleAddAnotherDish}
                 todayButtonRef={todayButtonRef}
+                userFoods={userFoods}
               />
             </div>
           )}
@@ -627,6 +643,7 @@ const App = ({ user, onSignOut }) => {
         editingDishId={editingDishId}
         handleAddDishFromModal={handleAddDishFromModal}
         modalLoading={modalLoading}
+        userFoods={userFoods}
       />
     </div>
   );

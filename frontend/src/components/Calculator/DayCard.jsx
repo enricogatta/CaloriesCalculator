@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import StatCard from '../UI/StatCard';
 import MealSection from './MealSection';
+import FoodAutocomplete from '../UI/FoodAutocomplete';
 
 const DayCard = ({
   selectedDate,
@@ -25,7 +26,8 @@ const DayCard = ({
   onDeleteDish,
   onDeleteMeal,
   onAddDish,
-  todayButtonRef
+  todayButtonRef,
+  userFoods,
 }) => {
   const generateDateRange = () => {
     const dates = [];
@@ -127,11 +129,15 @@ const DayCard = ({
           >
             {['Colazione', 'Pranzo', 'Cena', 'Spuntino'].map(c => <option key={c} className="bg-slate-900">{c}</option>)}
           </select>
-          <input
-            ref={mealInputRef}
-            className="md:col-span-5 px-3 py-2 xs:px-4 xs:py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
-            type="text" placeholder="Es: Pasta al pesto"
-            value={meal} onChange={(e) => setMeal(e.target.value)}
+          <FoodAutocomplete
+            value={meal}
+            onChange={(e) => setMeal(e.target.value)}
+            onSelect={(food) => { setMeal(food.name); setQuantityType(food.default_quantity_type); }}
+            foods={userFoods || []}
+            placeholder="Es: Pasta al pesto"
+            wrapperClassName="md:col-span-5"
+            inputClassName="w-full px-3 py-2 xs:px-4 xs:py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
+            inputRef={mealInputRef}
           />
           <div className="md:col-span-2 flex gap-1 items-center">
             <input

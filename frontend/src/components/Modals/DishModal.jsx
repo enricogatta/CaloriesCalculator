@@ -1,4 +1,5 @@
 import React from 'react';
+import FoodAutocomplete from '../UI/FoodAutocomplete';
 
 const DishModal = ({
   showDishModal,
@@ -13,7 +14,8 @@ const DishModal = ({
   modalCardCategory,
   editingDishId,
   handleAddDishFromModal,
-  modalLoading
+  modalLoading,
+  userFoods,
 }) => (
   <>
     {showDishModal && (
@@ -27,10 +29,14 @@ const DishModal = ({
           <div className="space-y-4 mb-8">
             <div>
               <label className="text-xs font-bold text-violet-400 uppercase mb-2 block">Nome alimento</label>
-              <input
-                className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white outline-none focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 transition-all text-base min-h-[48px]"
-                type="text" placeholder="Es: Petto di pollo"
-                value={modalMeal} onChange={(e) => setModalMeal(e.target.value)} autoFocus
+              <FoodAutocomplete
+                value={modalMeal}
+                onChange={(e) => setModalMeal(e.target.value)}
+                onSelect={(food) => { setModalMeal(food.name); setModalQuantityType(food.default_quantity_type); }}
+                foods={userFoods || []}
+                placeholder="Es: Petto di pollo"
+                inputClassName="w-full px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white outline-none focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 transition-all text-base min-h-[48px]"
+                autoFocus
               />
             </div>
             <div>
