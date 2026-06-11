@@ -1,2 +1,5 @@
 # Local Netlify folder
 .netlify
+
+# Contesto per Claude (solo uso locale)
+CLAUDE.md
