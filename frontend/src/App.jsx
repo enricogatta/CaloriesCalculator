@@ -5,6 +5,7 @@ import DayCard from './components/Calculator/DayCard';
 import DishModal from './components/Modals/DishModal';
 import EditableStatCard from './components/UI/EditableStatCard';
 import LoadingScreen from './components/UI/LoadingScreen';
+import ApiKeySettings from './components/Settings/ApiKeySettings';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -59,9 +60,14 @@ const App = ({ user, onSignOut }) => {
     if (pending) return pending;
 
     const requestPromise = (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
       const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           meal: String(foodName || '').trim(),
           quantity: parseFloat(qty),
@@ -595,6 +601,10 @@ const App = ({ user, onSignOut }) => {
                   onChange={(e) => handleUpdateGoal('fat', e.target.value)} onBlur={saveGoalsToDB}
                 />
               </div>
+            </div>
+          ) : currentView === 'settings' ? (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <ApiKeySettings user={user} />
             </div>
           ) : (
             <div className="animate-in fade-in duration-500">

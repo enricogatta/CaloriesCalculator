@@ -1,4 +1,9 @@
-const API_KEY = (process.env.GEMINI_API_KEY || '').trim();
+const { createClient } = require('@supabase/supabase-js');
+
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const FALLBACK_API_KEY = (process.env.GEMINI_API_KEY || '').trim();
+
 const GEMINI_MODELS = (process.env.GEMINI_MODELS || 'gemini-2.5-flash,gemini-2.0-flash')
     .split(',')
     .map(m => m.trim())
@@ -13,7 +18,7 @@ const inFlightRequests = new Map();
 
 const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json',
 };
@@ -86,8 +91,8 @@ const parseGeminiError = (statusCode, payload, fallbackMessage) => {
     return error;
 };
 
-const callGeminiModel = async (model, prompt) => {
-    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${API_KEY}`;
+const callGeminiModel = async (model, prompt, apiKey) => {
+    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
     const controller = new AbortController();
     const timeoutHandle = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
@@ -142,13 +147,13 @@ const callGeminiModel = async (model, prompt) => {
     }
 };
 
-const callGeminiWithRetry = async (prompt) => {
+const callGeminiWithRetry = async (prompt, apiKey) => {
     let lastError;
     for (const model of GEMINI_MODELS) {
         for (let attempt = 1; attempt <= GEMINI_MAX_RETRIES; attempt += 1) {
             try {
                 if (attempt > 1) console.log(`Retry modello ${model} (tentativo ${attempt}/${GEMINI_MAX_RETRIES})`);
-                return await callGeminiModel(model, prompt);
+                return await callGeminiModel(model, prompt, apiKey);
             } catch (error) {
                 lastError = error;
                 console.error(`Errore Gemini su ${model} (tentativo ${attempt}/${GEMINI_MAX_RETRIES}):`, error.message);
@@ -162,6 +167,36 @@ const callGeminiWithRetry = async (prompt) => {
     throw lastError || new Error('Richiesta Gemini fallita senza dettagli.');
 };
 
+const resolveApiKey = async (authHeader) => {
+    if (!authHeader?.startsWith('Bearer ') || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+        return FALLBACK_API_KEY;
+    }
+    const token = authHeader.slice(7);
+    try {
+        const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+            auth: { persistSession: false }
+        });
+        const { data: { user }, error } = await admin.auth.getUser(token);
+        if (error || !user) {
+            console.warn('JWT non valido, uso chiave fallback:', error?.message);
+            return FALLBACK_API_KEY;
+        }
+        const { data: profile, error: profileError } = await admin
+            .from('profiles')
+            .select('gemini_api_key')
+            .eq('id', user.id)
+            .single();
+        if (profileError) {
+            console.warn('Errore lettura profilo, uso chiave fallback:', profileError.message);
+            return FALLBACK_API_KEY;
+        }
+        return (profile?.gemini_api_key || '').trim() || FALLBACK_API_KEY;
+    } catch (err) {
+        console.error('resolveApiKey error:', err.message);
+        return FALLBACK_API_KEY;
+    }
+};
+
 exports.handler = async (event) => {
     if (event.httpMethod === 'OPTIONS') {
         return { statusCode: 204, headers: CORS_HEADERS, body: '' };
@@ -171,13 +206,15 @@ exports.handler = async (event) => {
         return reply(405, { error: 'Method not allowed' });
     }
 
+    const apiKey = await resolveApiKey(event.headers?.authorization || event.headers?.Authorization);
+
     let parsedBody = {};
     try { parsedBody = JSON.parse(event.body || '{}'); } catch { parsedBody = {}; }
 
     const { meal, quantity, quantityType } = parsedBody;
     console.log(`--- Richiesta: ${quantity} ${quantityType} di ${meal} ---`);
 
-    if (!API_KEY) {
+    if (!apiKey) {
         return reply(500, { error: 'GEMINI_API_KEY mancante nel backend.' });
     }
 
@@ -214,7 +251,7 @@ exports.handler = async (event) => {
         const quantityDesc = getQuantityDescription(numericQuantity, cleanedQuantityType);
         const prompt = buildPrompt(cleanedMeal, quantityDesc);
 
-        const requestPromise = callGeminiWithRetry(prompt);
+        const requestPromise = callGeminiWithRetry(prompt, apiKey);
         inFlightRequests.set(requestKey, requestPromise);
 
         const finalData = await requestPromise;

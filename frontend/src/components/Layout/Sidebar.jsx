@@ -27,6 +27,13 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, currentView, setCurrentView,
           </button>
 
           <button
+            onClick={() => { setCurrentView('settings'); setIsSidebarOpen(false); }}
+            className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${currentView === 'settings' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}
+          >
+            <span className="text-xl">🔑</span> Chiave API
+          </button>
+
+          <button
             onClick={onSync}
             disabled={syncLoading}
             className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${syncLoading ? 'bg-slate-800 text-gray-500 cursor-not-allowed' : 'text-cyan-300 hover:bg-slate-800 hover:text-cyan-200'}`}

@@ -16,6 +16,7 @@
 create table public.profiles (
   id uuid not null references auth.users(id) on delete cascade,
   display_name text,
+  gemini_api_key text,
   created_at timestamp with time zone not null default now(),
   constraint profiles_pkey primary key (id)
 );
