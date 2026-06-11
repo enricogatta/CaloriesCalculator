@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, currentView, setCurrentView, onSync, syncLoading }) => (
+const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, currentView, setCurrentView, onSync, syncLoading, onSignOut, userEmail }) => (
   <>
     {isSidebarOpen && (
       <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex animate-in fade-in duration-200" onClick={() => setIsSidebarOpen(false)}>
@@ -27,12 +27,31 @@ const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, currentView, setCurrentView,
           </button>
 
           <button
+            onClick={() => { setCurrentView('settings'); setIsSidebarOpen(false); }}
+            className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${currentView === 'settings' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}
+          >
+            <span className="text-xl">🔑</span> Chiave API
+          </button>
+
+          <button
             onClick={onSync}
             disabled={syncLoading}
             className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${syncLoading ? 'bg-slate-800 text-gray-500 cursor-not-allowed' : 'text-cyan-300 hover:bg-slate-800 hover:text-cyan-200'}`}
           >
             <span className="text-xl">🔄</span> {syncLoading ? 'Sincronizzazione...' : 'Sincronizza ora'}
           </button>
+
+          <div className="mt-auto pt-4 border-t border-violet-700/30">
+            {userEmail && (
+              <p className="text-xs text-gray-500 mb-3 px-1 truncate">{userEmail}</p>
+            )}
+            <button
+              onClick={onSignOut}
+              className="w-full text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 text-red-400 hover:bg-slate-800 hover:text-red-300"
+            >
+              <span className="text-xl">🚪</span> Esci
+            </button>
+          </div>
         </div>
       </div>
     )}
