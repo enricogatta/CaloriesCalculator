@@ -6,7 +6,7 @@ import DishModal from './components/Modals/DishModal';
 import EditableStatCard from './components/UI/EditableStatCard';
 import LoadingScreen from './components/UI/LoadingScreen';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const App = ({ user, onSignOut }) => {
   const [meal, setMeal] = useState('');
@@ -63,7 +63,7 @@ const App = ({ user, onSignOut }) => {
     }
 
     const requestPromise = (async () => {
-      const response = await fetch(`${API_BASE_URL}/api/analyze`, {
+      const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
