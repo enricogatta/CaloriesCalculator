@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const UNIT_LABELS = {
   grams: 'g',
@@ -21,7 +21,20 @@ const FoodAutocomplete = ({
   const [open, setOpen] = useState(false);
   const [filtered, setFiltered] = useState([]);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [dropdownStyle, setDropdownStyle] = useState({});
   const containerRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  // Calcola la posizione del dropdown basandosi sull'input — funziona anche dentro modal
+  const updateDropdownPosition = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setDropdownStyle({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
 
   useEffect(() => {
     const query = value.trim().toLowerCase();
@@ -30,23 +43,33 @@ const FoodAutocomplete = ({
       setOpen(false);
       return;
     }
-    const results = foods
-      .filter(f => f.name.includes(query))
-      .slice(0, 8);
+    const results = foods.filter(f => f.name.includes(query)).slice(0, 6);
     setFiltered(results);
     setOpen(results.length > 0);
     setActiveIndex(-1);
   }, [value, foods]);
 
   useEffect(() => {
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false);
-      }
+    if (!open) return;
+    updateDropdownPosition();
+
+    // Chiude il dropdown se si tocca/clicca fuori da input E dropdown
+    const handleClose = (e) => {
+      const insideInput = containerRef.current?.contains(e.target);
+      const insideDropdown = dropdownRef.current?.contains(e.target);
+      if (!insideInput && !insideDropdown) setOpen(false);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+    const handleScroll = () => setOpen(false);
+
+    document.addEventListener('mousedown', handleClose);
+    document.addEventListener('touchstart', handleClose);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClose);
+      document.removeEventListener('touchstart', handleClose);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [open, updateDropdownPosition]);
 
   const handleKeyDown = (e) => {
     if (!open) return;
@@ -72,31 +95,41 @@ const FoodAutocomplete = ({
   };
 
   return (
-    <div ref={containerRef} className={`relative ${wrapperClassName || ''}`}>
-      <input
-        ref={inputRef}
-        className={inputClassName}
-        type="text"
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        onKeyDown={handleKeyDown}
-        onFocus={() => { if (filtered.length > 0) setOpen(true); }}
-        autoFocus={autoFocus}
-        autoComplete="off"
-      />
+    <>
+      <div ref={containerRef} className={wrapperClassName || ''}>
+        <input
+          ref={inputRef}
+          className={inputClassName}
+          type="text"
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            if (filtered.length > 0) {
+              updateDropdownPosition();
+              setOpen(true);
+            }
+          }}
+          autoFocus={autoFocus}
+          autoComplete="off"
+        />
+      </div>
+
       {open && (
-        <ul className="absolute z-50 w-full mt-1 bg-slate-800 border border-violet-700 border-opacity-60 rounded-xl shadow-2xl overflow-hidden">
+        <ul
+          ref={dropdownRef}
+          style={dropdownStyle}
+          className="fixed z-[9999] bg-slate-800 border border-violet-700 border-opacity-60 rounded-xl shadow-2xl overflow-y-auto max-h-[220px]"
+        >
           {filtered.map((food, i) => (
             <li
               key={`${food.name}-${food.default_quantity_type}`}
-              className={`px-4 py-2.5 cursor-pointer flex justify-between items-center text-sm transition-colors ${
-                i === activeIndex ? 'bg-violet-700 text-white' : 'text-white hover:bg-slate-700'
+              className={`px-4 py-3 cursor-pointer flex justify-between items-center text-sm transition-colors min-h-[44px] ${
+                i === activeIndex ? 'bg-violet-700 text-white' : 'text-white active:bg-slate-600 hover:bg-slate-700'
               }`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleSelect(food);
-              }}
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(food); }}
+              onTouchEnd={(e) => { e.preventDefault(); handleSelect(food); }}
             >
               <span className="capitalize">{food.name}</span>
               <span className={`text-xs ml-2 shrink-0 ${i === activeIndex ? 'text-violet-200' : 'text-gray-400'}`}>
@@ -106,7 +139,7 @@ const FoodAutocomplete = ({
           ))}
         </ul>
       )}
-    </div>
+    </>
   );
 };
 
