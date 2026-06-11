@@ -4,7 +4,7 @@
   publish = "dist"
 
 [functions]
-  directory = "netlify/functions"
+  directory = "../netlify/functions"
 
 # Mappa /api/* alle Netlify Functions, così il frontend non cambia le sue URL
 [[redirects]]
