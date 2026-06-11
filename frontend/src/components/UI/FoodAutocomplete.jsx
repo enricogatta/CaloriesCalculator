@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 const UNIT_LABELS = {
   grams: 'g',
@@ -29,8 +30,10 @@ const FoodAutocomplete = ({
   const updateDropdownPosition = useCallback(() => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
+    // visualViewport.offsetTop compensa lo scroll che iOS fa quando appare la tastiera
+    const vvOffsetTop = window.visualViewport?.offsetTop ?? 0;
     setDropdownStyle({
-      top: rect.bottom + 4,
+      top: rect.bottom + vvOffsetTop + 4,
       left: rect.left,
       width: rect.width,
     });
@@ -59,15 +62,23 @@ const FoodAutocomplete = ({
       const insideDropdown = dropdownRef.current?.contains(e.target);
       if (!insideInput && !insideDropdown) setOpen(false);
     };
-    const handleScroll = () => setOpen(false);
 
+    const vv = window.visualViewport;
     document.addEventListener('mousedown', handleClose);
-    document.addEventListener('touchstart', handleClose);
-    window.addEventListener('scroll', handleScroll, true);
+    // passive: true migliora lo scroll su iOS
+    document.addEventListener('touchstart', handleClose, { passive: true });
+    // visualViewport aggiorna la posizione quando la tastiera iOS appare/scompare
+    if (vv) {
+      vv.addEventListener('resize', updateDropdownPosition);
+      vv.addEventListener('scroll', updateDropdownPosition);
+    }
     return () => {
       document.removeEventListener('mousedown', handleClose);
       document.removeEventListener('touchstart', handleClose);
-      window.removeEventListener('scroll', handleScroll, true);
+      if (vv) {
+        vv.removeEventListener('resize', updateDropdownPosition);
+        vv.removeEventListener('scroll', updateDropdownPosition);
+      }
     };
   }, [open, updateDropdownPosition]);
 
@@ -116,7 +127,7 @@ const FoodAutocomplete = ({
         />
       </div>
 
-      {open && (
+      {open && createPortal(
         <ul
           ref={dropdownRef}
           style={dropdownStyle}
@@ -137,7 +148,8 @@ const FoodAutocomplete = ({
               </span>
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body
       )}
     </>
   );
