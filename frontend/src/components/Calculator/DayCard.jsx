@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import StatCard from '../UI/StatCard';
 import MealSection from './MealSection';
 import FoodAutocomplete from '../UI/FoodAutocomplete';
@@ -26,29 +26,55 @@ const DayCard = ({
   onDeleteDish,
   onDeleteMeal,
   onAddDish,
-  todayButtonRef,
   userFoods,
+  minLogDate,
 }) => {
-  const generateDateRange = () => {
+  const selectedButtonRef = useRef(null);
+  const todayDate = getTodayDate();
+
+  const generateDateRange = (minDate) => {
     const dates = [];
+    const [startY, startM, startD] = minDate.split('-').map(Number);
+    const startLocal = new Date(startY, startM - 1, startD);
     const today = new Date();
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - (14 - i));
-      dates.push(date.toISOString().split('T')[0]);
+    const endLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30);
+    const current = new Date(startLocal);
+    while (current <= endLocal) {
+      const y = current.getFullYear();
+      const m = String(current.getMonth() + 1).padStart(2, '0');
+      const d = String(current.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+      current.setDate(current.getDate() + 1);
     }
     return dates;
   };
 
-  const dates = useMemo(() => generateDateRange(), [selectedDate]);
-  const todayDate = getTodayDate();
+  const dates = useMemo(() => generateDateRange(minLogDate), [minLogDate]);
+
+  // Scrolla al bottone della data selezionata ogni volta che cambia
+  useEffect(() => {
+    const t = setTimeout(() => {
+      selectedButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 80);
+    return () => clearTimeout(t);
+  }, [selectedDate, dates]);
+
+  const navigateDate = (direction) => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + direction);
+    const ny = date.getFullYear();
+    const nm = String(date.getMonth() + 1).padStart(2, '0');
+    const nd = String(date.getDate()).padStart(2, '0');
+    setSelectedDate(`${ny}-${nm}-${nd}`);
+  };
 
   return (
     <div>
       {/* NAVIGAZIONE DATE */}
-      <div className="mb-6 flex items-center justify-center gap-2 xs:gap-3 sm:gap-4">
+      <div className="mb-2 flex items-center justify-center gap-2 xs:gap-3 sm:gap-4">
         <button
-          onClick={() => setSelectedDate(new Date(new Date(selectedDate).getTime() - 86400000).toISOString().split('T')[0])}
+          onClick={() => navigateDate(-1)}
           className="px-4 py-2 text-violet-400 hover:text-white transition-colors text-xl font-bold"
         >←</button>
 
@@ -63,17 +89,14 @@ const DayCard = ({
             return (
               <button
                 key={date}
-                ref={isToday ? todayButtonRef : null}
-                onClick={() => date <= todayDate && setSelectedDate(date)}
-                disabled={date > todayDate}
+                ref={isSelected ? selectedButtonRef : null}
+                onClick={() => setSelectedDate(date)}
                 className={`
                   px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-300 flex flex-col items-center leading-tight
                   ${isSelected
                     ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg border-2 border-violet-400 scale-105'
                     : isToday
                     ? 'border-2 border-cyan-400 text-cyan-400 bg-slate-800'
-                    : date > todayDate
-                    ? 'opacity-30 cursor-not-allowed bg-slate-900 text-slate-600'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                   }
                 `}
@@ -86,12 +109,27 @@ const DayCard = ({
         </div>
 
         <button
-          onClick={() => {
-            const next = new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0];
-            if (next <= todayDate) setSelectedDate(next);
-          }}
-          className={`px-4 py-2 text-xl font-bold transition-colors ${new Date(new Date(selectedDate).getTime() + 86400000).toISOString().split('T')[0] > todayDate ? 'text-gray-700 cursor-not-allowed' : 'text-violet-400 hover:text-white'}`}
+          onClick={() => navigateDate(1)}
+          className="px-4 py-2 text-violet-400 hover:text-white transition-colors text-xl font-bold"
         >→</button>
+      </div>
+
+      {/* SELETTORE DATA RAPIDO */}
+      <div className="flex justify-center items-center gap-3 mb-6">
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+          className="bg-slate-800 border border-violet-700/30 text-white rounded-lg px-3 py-1.5 text-sm cursor-pointer focus:border-violet-500 outline-none"
+        />
+        {selectedDate !== todayDate && (
+          <button
+            onClick={() => setSelectedDate(todayDate)}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 border border-cyan-400/40 text-cyan-400 hover:bg-slate-700 transition-colors"
+          >
+            Oggi
+          </button>
+        )}
       </div>
 
       {/* DASHBOARD STATS CON PERCENTUALI */}
@@ -115,10 +153,7 @@ const DayCard = ({
       </div>
 
       {/* INPUT FORM */}
-      <div className={`
-        bg-slate-900 rounded-2xl border border-violet-700 border-opacity-30 p-3 xs:p-4 sm:p-8 mb-6 xs:mb-8 backdrop-blur-sm hover:border-opacity-70 transition-all duration-300
-        ${selectedDate > todayDate ? 'opacity-50 pointer-events-none grayscale' : ''}
-      `}>
+      <div className="bg-slate-900 rounded-2xl border border-violet-700 border-opacity-30 p-3 xs:p-4 sm:p-8 mb-6 xs:mb-8 backdrop-blur-sm hover:border-opacity-70 transition-all duration-300">
         <h2 className="text-xl xs:text-2xl font-bold mb-4 xs:mb-6 text-white flex items-center gap-2">
           <span className="text-2xl xs:text-3xl">📝</span> Aggiungi un pasto
         </h2>

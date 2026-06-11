@@ -25,6 +25,8 @@ const FoodAutocomplete = ({
   const [dropdownStyle, setDropdownStyle] = useState({});
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
+  const justSelectedRef = useRef(false);
+  const suppressCloseRef = useRef(false);
 
   // Calcola la posizione del dropdown basandosi sull'input — funziona anche dentro modal
   const updateDropdownPosition = useCallback(() => {
@@ -44,11 +46,17 @@ const FoodAutocomplete = ({
     if (query.length < 1) {
       setFiltered([]);
       setOpen(false);
+      justSelectedRef.current = false;
       return;
     }
     const results = foods.filter(f => f.name.includes(query)).slice(0, 6);
     setFiltered(results);
-    setOpen(results.length > 0);
+    if (justSelectedRef.current) {
+      justSelectedRef.current = false;
+      // Non riaprire il dropdown dopo selezione esplicita
+    } else {
+      setOpen(results.length > 0);
+    }
     setActiveIndex(-1);
   }, [value, foods]);
 
@@ -58,26 +66,34 @@ const FoodAutocomplete = ({
 
     // Chiude il dropdown se si tocca/clicca fuori da input E dropdown
     const handleClose = (e) => {
+      if (suppressCloseRef.current) return;
       const insideInput = containerRef.current?.contains(e.target);
       const insideDropdown = dropdownRef.current?.contains(e.target);
       if (!insideInput && !insideDropdown) setOpen(false);
+    };
+
+    // Quando la tastiera iOS appare/scompare, aggiorna la posizione e blocca
+    // temporaneamente la chiusura (il viewport shift può spostare il target del tap)
+    const handleVVChange = () => {
+      suppressCloseRef.current = true;
+      updateDropdownPosition();
+      setTimeout(() => { suppressCloseRef.current = false; }, 300);
     };
 
     const vv = window.visualViewport;
     document.addEventListener('mousedown', handleClose);
     // passive: true migliora lo scroll su iOS
     document.addEventListener('touchstart', handleClose, { passive: true });
-    // visualViewport aggiorna la posizione quando la tastiera iOS appare/scompare
     if (vv) {
-      vv.addEventListener('resize', updateDropdownPosition);
-      vv.addEventListener('scroll', updateDropdownPosition);
+      vv.addEventListener('resize', handleVVChange);
+      vv.addEventListener('scroll', handleVVChange);
     }
     return () => {
       document.removeEventListener('mousedown', handleClose);
       document.removeEventListener('touchstart', handleClose);
       if (vv) {
-        vv.removeEventListener('resize', updateDropdownPosition);
-        vv.removeEventListener('scroll', updateDropdownPosition);
+        vv.removeEventListener('resize', handleVVChange);
+        vv.removeEventListener('scroll', handleVVChange);
       }
     };
   }, [open, updateDropdownPosition]);
@@ -92,6 +108,7 @@ const FoodAutocomplete = ({
       setActiveIndex(i => Math.max(i - 1, -1));
     } else if (e.key === 'Enter' && activeIndex >= 0) {
       e.preventDefault();
+      justSelectedRef.current = true;
       onSelect(filtered[activeIndex]);
       setOpen(false);
     } else if (e.key === 'Escape') {
@@ -100,6 +117,7 @@ const FoodAutocomplete = ({
   };
 
   const handleSelect = (food) => {
+    justSelectedRef.current = true;
     onSelect(food);
     setOpen(false);
     setActiveIndex(-1);

@@ -9,6 +9,13 @@ import ApiKeySettings from './components/Settings/ApiKeySettings';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+const getLocalDateStr = (d = new Date()) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+};
+
 const App = ({ user, onSignOut }) => {
   const [meal, setMeal] = useState('');
   const [quantityType, setQuantityType] = useState('grams');
@@ -24,7 +31,7 @@ const App = ({ user, onSignOut }) => {
   const [modalCardId, setModalCardId] = useState(null);
   const [modalCardCategory, setModalCardCategory] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalDateStr());
   const [editingDishId, setEditingDishId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState('calculator');
@@ -38,10 +45,9 @@ const App = ({ user, onSignOut }) => {
   });
 
   const mealInputRef = React.useRef(null);
-  const todayButtonRef = React.useRef(null);
   const pendingApiRequestsRef = React.useRef(new Map());
 
-  const getTodayDate = useCallback(() => new Date().toISOString().split('T')[0], []);
+  const getTodayDate = useCallback(() => getLocalDateStr(), []);
   const dailyLogs = useMemo(
     () => logs.filter(log => log.date === selectedDate),
     [logs, selectedDate]
@@ -224,22 +230,15 @@ const App = ({ user, onSignOut }) => {
   const handleSyncWithSupabase = useCallback(async () => {
     setIsSidebarOpen(false);
     setSyncLoading(true);
+    setSelectedDate(getTodayDate());
     try {
       await Promise.all([fetchLogs(), fetchGoals()]);
     } finally {
       setSyncLoading(false);
     }
-  }, [fetchLogs, fetchGoals]);
+  }, [fetchLogs, fetchGoals, getTodayDate]);
 
-  useEffect(() => {
-    if (initialLoading || syncLoading || currentView !== 'calculator') return;
-    const scrollTimer = setTimeout(() => {
-      todayButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }, 120);
-    return () => clearTimeout(scrollTimer);
-  }, [initialLoading, syncLoading, currentView]);
-
-  const handleUpdateGoal = useCallback((macro, value) => {
+const handleUpdateGoal = useCallback((macro, value) => {
     setGoals(prev => ({ ...prev, [macro]: Number(value) }));
   }, []);
 
@@ -302,9 +301,6 @@ const App = ({ user, onSignOut }) => {
   const handleAddMeal = async () => {
     if (!meal.trim() || !quantity || isNaN(quantity) || quantity <= 0) {
       alert("Inserisci un cibo valido e una quantità positiva!"); return;
-    }
-    if (selectedDate > getTodayDate()) {
-      alert("Non puoi aggiungere pasti a giorni futuri!"); return;
     }
 
     setLoading(true);
@@ -369,9 +365,6 @@ const App = ({ user, onSignOut }) => {
   const handleAddDishFromModal = async () => {
     if (!modalMeal.trim() || !modalQuantity || isNaN(modalQuantity) || modalQuantity <= 0) {
       alert("Inserisci un cibo valido e una quantità positiva!"); return;
-    }
-    if (selectedDate > getTodayDate()) {
-      alert("Non puoi aggiungere pasti a giorni futuri!"); return;
     }
 
     setModalLoading(true);
@@ -515,6 +508,12 @@ const App = ({ user, onSignOut }) => {
     return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [logs]);
 
+  const minLogDate = useMemo(() => {
+    const logDates = logs.map(l => l.date).filter(Boolean);
+    if (logDates.length === 0) return getLocalDateStr(new Date(Date.now() - 30 * 86400000));
+    return logDates.reduce((min, date) => date < min ? date : min);
+  }, [logs]);
+
   const dailyTotals = useMemo(() => dailyLogs.reduce((acc, card) => {
     const dishes = Array.isArray(card.dishes) ? card.dishes : [];
     const cardTotals = dishes.reduce((cAcc, dish) => ({
@@ -631,8 +630,8 @@ const App = ({ user, onSignOut }) => {
                 onDeleteDish={handleRemoveDish}
                 onDeleteMeal={handleRemoveCard}
                 onAddDish={handleAddAnotherDish}
-                todayButtonRef={todayButtonRef}
                 userFoods={userFoods}
+                minLogDate={minLogDate}
               />
             </div>
           )}
