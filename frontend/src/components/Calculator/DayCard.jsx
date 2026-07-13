@@ -171,17 +171,17 @@ const DayCard = ({
             foods={userFoods || []}
             placeholder="Es: Pasta al pesto"
             wrapperClassName="md:col-span-5"
-            inputClassName="w-full px-3 py-2 xs:px-4 xs:py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
+            inputClassName="w-full px-3 py-2 xs:px-4 xs:py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-base"
             inputRef={mealInputRef}
           />
           <div className="md:col-span-2 flex gap-1 items-center">
             <input
-              className="w-20 px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-sm xs:text-base"
+              className="w-20 px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-base"
               type="number" min="0" step="any" placeholder="Quantità"
               value={quantity} onChange={e => setQuantity(e.target.value)}
             />
             <select
-              className="px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all text-xs xs:text-sm"
+              className="px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all text-base xs:text-sm"
               value={quantityType} onChange={e => setQuantityType(e.target.value)}
             >
               <option value="grams">g</option>

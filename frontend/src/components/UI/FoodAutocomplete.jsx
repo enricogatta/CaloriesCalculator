@@ -22,11 +22,17 @@ const FoodAutocomplete = ({
   const [open, setOpen] = useState(false);
   const [filtered, setFiltered] = useState([]);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [pressedIndex, setPressedIndex] = useState(-1);
   const [dropdownStyle, setDropdownStyle] = useState({});
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
   const justSelectedRef = useRef(false);
   const suppressCloseRef = useRef(false);
+  // Il dropdown si apre solo dopo che l'utente ha digitato: un valore precompilato
+  // (es. modifica piatto) non deve far comparire la lista
+  const userTypedRef = useRef(false);
+  // Distingue tap da scroll nel dropdown su touch screen
+  const touchRef = useRef({ y: 0, moved: false });
 
   // Calcola la posizione del dropdown basandosi sull'input — funziona anche dentro modal
   const updateDropdownPosition = useCallback(() => {
@@ -54,7 +60,7 @@ const FoodAutocomplete = ({
     if (justSelectedRef.current) {
       justSelectedRef.current = false;
       // Non riaprire il dropdown dopo selezione esplicita
-    } else {
+    } else if (userTypedRef.current) {
       setOpen(results.length > 0);
     }
     setActiveIndex(-1);
@@ -108,9 +114,7 @@ const FoodAutocomplete = ({
       setActiveIndex(i => Math.max(i - 1, -1));
     } else if (e.key === 'Enter' && activeIndex >= 0) {
       e.preventDefault();
-      justSelectedRef.current = true;
-      onSelect(filtered[activeIndex]);
-      setOpen(false);
+      handleSelect(filtered[activeIndex]);
     } else if (e.key === 'Escape') {
       setOpen(false);
     }
@@ -118,9 +122,11 @@ const FoodAutocomplete = ({
 
   const handleSelect = (food) => {
     justSelectedRef.current = true;
+    userTypedRef.current = false;
     onSelect(food);
     setOpen(false);
     setActiveIndex(-1);
+    setPressedIndex(-1);
   };
 
   return (
@@ -132,10 +138,10 @@ const FoodAutocomplete = ({
           type="text"
           placeholder={placeholder}
           value={value}
-          onChange={onChange}
+          onChange={(e) => { userTypedRef.current = true; onChange(e); }}
           onKeyDown={handleKeyDown}
           onFocus={() => {
-            if (filtered.length > 0) {
+            if (userTypedRef.current && filtered.length > 0) {
               updateDropdownPosition();
               setOpen(true);
             }
@@ -148,17 +154,34 @@ const FoodAutocomplete = ({
       {open && createPortal(
         <ul
           ref={dropdownRef}
-          style={dropdownStyle}
-          className="fixed z-[9999] bg-slate-800 border border-violet-700 border-opacity-60 rounded-xl shadow-2xl overflow-y-auto max-h-[220px]"
+          style={{ ...dropdownStyle, WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+          className="fixed z-[9999] bg-slate-800 border border-violet-700 border-opacity-60 rounded-xl shadow-2xl overflow-y-auto max-h-[220px] overscroll-contain"
         >
           {filtered.map((food, i) => (
             <li
               key={`${food.name}-${food.default_quantity_type}`}
               className={`px-4 py-3 cursor-pointer flex justify-between items-center text-sm transition-colors min-h-[44px] ${
-                i === activeIndex ? 'bg-violet-700 text-white' : 'text-white active:bg-slate-600 hover:bg-slate-700'
+                i === activeIndex || i === pressedIndex ? 'bg-violet-700 text-white' : 'text-white hover:bg-slate-700'
               }`}
               onMouseDown={(e) => { e.preventDefault(); handleSelect(food); }}
-              onTouchEnd={(e) => { e.preventDefault(); handleSelect(food); }}
+              onTouchStart={(e) => {
+                touchRef.current = { y: e.touches[0].clientY, moved: false };
+                setPressedIndex(i);
+              }}
+              onTouchMove={(e) => {
+                // Se il dito si sposta è uno scroll: annulla evidenziazione e selezione
+                if (Math.abs(e.touches[0].clientY - touchRef.current.y) > 10) {
+                  touchRef.current.moved = true;
+                  setPressedIndex(-1);
+                }
+              }}
+              onTouchCancel={() => { touchRef.current.moved = true; setPressedIndex(-1); }}
+              onTouchEnd={(e) => {
+                setPressedIndex(-1);
+                if (touchRef.current.moved) return; // era uno scroll, non un tap
+                e.preventDefault();
+                handleSelect(food);
+              }}
             >
               <span className="capitalize">{food.name}</span>
               <span className={`text-xs ml-2 shrink-0 ${i === activeIndex ? 'text-violet-200' : 'text-gray-400'}`}>

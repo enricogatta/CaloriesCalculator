@@ -36,7 +36,7 @@ const DishModal = ({
                 foods={userFoods || []}
                 placeholder="Es: Petto di pollo"
                 inputClassName="w-full px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white outline-none focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 transition-all text-base min-h-[48px]"
-                autoFocus
+                autoFocus={!editingDishId}
               />
             </div>
             <div>
