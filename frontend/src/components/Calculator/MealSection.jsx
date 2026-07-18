@@ -24,9 +24,12 @@ const MealSection = ({ id, category, dishes, onEditDish, onDeleteDish, onDeleteM
     <section className="overflow-hidden rounded-2xl border border-violet-400/25 bg-zinc-950 bg-gradient-to-br from-violet-500/25 to-violet-500/[0.08]">
       <div className="flex items-center justify-between gap-3 px-4 pt-4 sm:px-5">
         <div className="min-w-0">
-          <h4 className="text-sm font-semibold tracking-tight text-white">{category}</h4>
+          <h4 className="text-xs font-semibold tracking-wider text-violet-300 uppercase">{category}</h4>
           <p className="mt-0.5 text-xs text-zinc-500 tabular-nums">
-            {cardTotals.calories.toFixed(0)} kcal · {dishes.length} {dishes.length === 1 ? 'piatto' : 'piatti'}
+            <span className="text-sm font-semibold text-white">{cardTotals.calories.toFixed(0)}</span>
+            <span className="ml-0.5 text-[10px] font-medium text-zinc-500">kcal</span>
+            <span className="mx-1.5 text-zinc-700">·</span>
+            {dishes.length} {dishes.length === 1 ? 'piatto' : 'piatti'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -60,9 +63,11 @@ const MealSection = ({ id, category, dishes, onEditDish, onDeleteDish, onDeleteM
             className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-white/[0.02] sm:px-5"
           >
             <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2">
-                <p className="truncate text-sm font-medium text-zinc-100 capitalize">{dish.food}</p>
-                <span className="shrink-0 text-xs text-zinc-500 tabular-nums">{formatQuantity(dish)}</span>
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <p className="min-w-0 text-sm font-medium break-words text-zinc-100 capitalize">{dish.food}</p>
+                <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[11px] text-zinc-400 tabular-nums">
+                  {formatQuantity(dish)}
+                </span>
               </div>
               <p className="mt-1 text-xs text-zinc-500 tabular-nums">
                 <span className="font-semibold text-sky-400/90">P</span> {dish.protein.toFixed(1)} g
