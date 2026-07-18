@@ -1,55 +1,96 @@
 import React from 'react';
+import {
+  CloseIcon,
+  UtensilsIcon,
+  TargetIcon,
+  KeyIcon,
+  RefreshIcon,
+  LogOutIcon,
+} from '../UI/Icons';
+
+const navItemClass = (active) =>
+  `flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left text-sm font-medium transition-colors ${
+    active ? 'bg-white/[0.06] text-white' : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200'
+  }`;
 
 const Sidebar = ({ isSidebarOpen, setIsSidebarOpen, currentView, setCurrentView, onSync, syncLoading, onSignOut, userEmail }) => (
   <>
     {isSidebarOpen && (
-      <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex animate-in fade-in duration-200" onClick={() => setIsSidebarOpen(false)}>
+      <div
+        className="fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm"
+        onClick={() => setIsSidebarOpen(false)}
+      >
         <div
-          className="w-72 bg-slate-950 border-r border-violet-700 border-opacity-50 h-full p-6 flex flex-col gap-4 shadow-2xl animate-in slide-in-from-left duration-300"
+          className="flex h-full w-72 max-w-[85vw] flex-col border-r border-white/5 bg-zinc-950 p-4"
+          style={{
+            paddingTop: 'calc(1rem + env(safe-area-inset-top))',
+            paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))',
+          }}
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex justify-between items-center mb-8 mt-2">
-            <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600">Menu</h2>
-            <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white text-2xl font-bold">✕</button>
+          <div className="mb-6 flex items-center justify-between px-1">
+            <div className="flex items-center gap-2.5">
+              <img src="/icona.png" alt="" className="h-8 w-8 rounded-lg object-contain" />
+              <span className="text-sm font-semibold tracking-tight text-white">Calories Calculator</span>
+            </div>
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-white"
+              aria-label="Chiudi menu"
+            >
+              <CloseIcon size={18} />
+            </button>
           </div>
 
-          <button
-            onClick={() => { setCurrentView('calculator'); setIsSidebarOpen(false); }}
-            className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${currentView === 'calculator' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}
-          >
-            <span className="text-xl">🍽️</span> Calories Calculator
-          </button>
-          <button
-            onClick={() => { setCurrentView('goals'); setIsSidebarOpen(false); }}
-            className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${currentView === 'goals' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}
-          >
-            <span className="text-xl">🎯</span> Miei Obiettivi
-          </button>
+          <nav className="flex flex-col gap-1">
+            <button
+              onClick={() => { setCurrentView('calculator'); setIsSidebarOpen(false); }}
+              className={navItemClass(currentView === 'calculator')}
+            >
+              <UtensilsIcon size={18} className={currentView === 'calculator' ? 'text-violet-400' : ''} />
+              Diario alimentare
+            </button>
+            <button
+              onClick={() => { setCurrentView('goals'); setIsSidebarOpen(false); }}
+              className={navItemClass(currentView === 'goals')}
+            >
+              <TargetIcon size={18} className={currentView === 'goals' ? 'text-violet-400' : ''} />
+              Obiettivi
+            </button>
+            <button
+              onClick={() => { setCurrentView('settings'); setIsSidebarOpen(false); }}
+              className={navItemClass(currentView === 'settings')}
+            >
+              <KeyIcon size={18} className={currentView === 'settings' ? 'text-violet-400' : ''} />
+              Chiave API
+            </button>
+          </nav>
 
-          <button
-            onClick={() => { setCurrentView('settings'); setIsSidebarOpen(false); }}
-            className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${currentView === 'settings' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30' : 'text-gray-400 hover:bg-slate-800 hover:text-white'}`}
-          >
-            <span className="text-xl">🔑</span> Chiave API
-          </button>
+          <div className="my-3 h-px bg-white/5" />
 
           <button
             onClick={onSync}
             disabled={syncLoading}
-            className={`text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 ${syncLoading ? 'bg-slate-800 text-gray-500 cursor-not-allowed' : 'text-cyan-300 hover:bg-slate-800 hover:text-cyan-200'}`}
+            className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left text-sm font-medium transition-colors ${
+              syncLoading
+                ? 'cursor-not-allowed text-zinc-600'
+                : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200'
+            }`}
           >
-            <span className="text-xl">🔄</span> {syncLoading ? 'Sincronizzazione...' : 'Sincronizza ora'}
+            <RefreshIcon size={18} className={syncLoading ? 'animate-spin' : ''} />
+            {syncLoading ? 'Sincronizzazione...' : 'Sincronizza dati'}
           </button>
 
-          <div className="mt-auto pt-4 border-t border-violet-700/30">
+          <div className="mt-auto border-t border-white/5 pt-4">
             {userEmail && (
-              <p className="text-xs text-gray-500 mb-3 px-1 truncate">{userEmail}</p>
+              <p className="mb-2 truncate px-3.5 text-xs text-zinc-600">{userEmail}</p>
             )}
             <button
               onClick={onSignOut}
-              className="w-full text-left px-4 py-4 rounded-xl font-bold transition-all flex items-center gap-3 text-red-400 hover:bg-slate-800 hover:text-red-300"
+              className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left text-sm font-medium text-red-400 transition-colors hover:bg-red-400/10"
             >
-              <span className="text-xl">🚪</span> Esci
+              <LogOutIcon size={18} />
+              Esci
             </button>
           </div>
         </div>

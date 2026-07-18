@@ -2,6 +2,26 @@ import React, { useMemo, useRef, useEffect } from 'react';
 import StatCard from '../UI/StatCard';
 import MealSection from './MealSection';
 import FoodAutocomplete from '../UI/FoodAutocomplete';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronDownIcon,
+  PlusIcon,
+  SpinnerIcon,
+  UtensilsIcon,
+} from '../UI/Icons';
+
+const inputClass =
+  'w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-base text-white placeholder:text-zinc-600 outline-none transition-colors focus:border-violet-400/60';
+const selectClass = `${inputClass} cursor-pointer appearance-none pr-9`;
+const labelClass = 'mb-1.5 block text-xs font-medium text-zinc-400';
+
+const SelectChevron = () => (
+  <ChevronDownIcon
+    size={16}
+    className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-zinc-500"
+  />
+);
 
 const DayCard = ({
   selectedDate,
@@ -72,13 +92,16 @@ const DayCard = ({
   return (
     <div>
       {/* NAVIGAZIONE DATE */}
-      <div className="mb-2 flex items-center justify-center gap-2 xs:gap-3 sm:gap-4">
+      <div className="mb-3 flex items-center justify-center gap-1 sm:gap-2">
         <button
           onClick={() => navigateDate(-1)}
-          className="px-4 py-2 text-violet-400 hover:text-white transition-colors text-xl font-bold"
-        >←</button>
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
+          aria-label="Giorno precedente"
+        >
+          <ChevronLeftIcon size={18} />
+        </button>
 
-        <div className="flex gap-1 xs:gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-[220px] xs:max-w-[280px] md:max-w-3xl">
+        <div className="scrollbar-hide flex max-w-[240px] gap-1.5 overflow-x-auto pb-1 sm:max-w-md md:max-w-2xl">
           {dates.map((date) => {
             const isSelected = selectedDate === date;
             const isToday = date === todayDate;
@@ -86,23 +109,29 @@ const DayCard = ({
               .toLocaleDateString('it-IT', { weekday: 'short' })
               .replace('.', '')
               .toLowerCase();
+            const dayNum = new Date(date).toLocaleDateString('it-IT', { day: 'numeric' });
+            const monthShort = new Date(date)
+              .toLocaleDateString('it-IT', { month: 'short' })
+              .replace('.', '')
+              .toLowerCase();
             return (
               <button
                 key={date}
                 ref={isSelected ? selectedButtonRef : null}
                 onClick={() => setSelectedDate(date)}
-                className={`
-                  px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-300 flex flex-col items-center leading-tight
-                  ${isSelected
-                    ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg border-2 border-violet-400 scale-105'
+                className={`flex w-12 shrink-0 flex-col items-center rounded-xl border py-1.5 leading-tight transition-colors ${
+                  isSelected
+                    ? 'border-transparent bg-violet-600 text-white'
                     : isToday
-                    ? 'border-2 border-cyan-400 text-cyan-400 bg-slate-800'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }
-                `}
+                    ? 'border-violet-400/40 bg-zinc-900 text-violet-400'
+                    : 'border-white/5 bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
+                }`}
               >
-                <span>{new Date(date).toLocaleDateString('it-IT', { month: 'short', day: 'numeric' })}</span>
-                <span className={`text-[10px] mt-1 ${isSelected ? 'text-violet-100' : 'opacity-80'}`}>{shortWeekday}</span>
+                <span className="text-[10px] font-medium uppercase">{shortWeekday}</span>
+                <span className="text-sm font-semibold tabular-nums">{dayNum}</span>
+                <span className={`text-[9px] uppercase ${isSelected ? 'text-white/70' : 'text-zinc-500'}`}>
+                  {monthShort}
+                </span>
               </button>
             );
           })}
@@ -110,22 +139,25 @@ const DayCard = ({
 
         <button
           onClick={() => navigateDate(1)}
-          className="px-4 py-2 text-violet-400 hover:text-white transition-colors text-xl font-bold"
-        >→</button>
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
+          aria-label="Giorno successivo"
+        >
+          <ChevronRightIcon size={18} />
+        </button>
       </div>
 
       {/* SELETTORE DATA RAPIDO */}
-      <div className="flex justify-center items-center gap-3 mb-6">
+      <div className="mb-6 flex items-center justify-center gap-2">
         <input
           type="date"
           value={selectedDate}
           onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
-          className="bg-slate-800 border border-violet-700/30 text-white rounded-lg px-3 py-1.5 text-sm cursor-pointer focus:border-violet-500 outline-none"
+          className="cursor-pointer rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-300 outline-none transition-colors focus:border-violet-400/60"
         />
         {selectedDate !== todayDate && (
           <button
             onClick={() => setSelectedDate(todayDate)}
-            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 border border-cyan-400/40 text-cyan-400 hover:bg-slate-700 transition-colors"
+            className="rounded-lg border border-violet-400/30 bg-violet-400/10 px-3 py-1.5 text-xs font-semibold text-violet-400 transition-colors hover:bg-violet-400/20"
           >
             Oggi
           </button>
@@ -133,96 +165,122 @@ const DayCard = ({
       </div>
 
       {/* DASHBOARD STATS CON PERCENTUALI */}
-      <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-4 gap-2 xs:gap-3 mb-6 xs:mb-8">
+      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <StatCard
-          label="Calorie" value={dailyTotals.calories.toFixed(0)} unit="kcal" icon="🔥" gradient="from-orange-500 to-red-600"
+          label="Calorie" value={dailyTotals.calories.toFixed(0)} unit="kcal" goal={goals.calories} tone="orange"
           percentage={goals.calories > 0 ? Math.round((dailyTotals.calories / goals.calories) * 100) : 0}
         />
         <StatCard
-          label="Proteine" value={dailyTotals.protein.toFixed(1)} unit="g" icon="🥩" gradient="from-blue-500 to-cyan-600"
+          label="Proteine" value={dailyTotals.protein.toFixed(1)} unit="g" goal={goals.protein} tone="sky"
           percentage={goals.protein > 0 ? Math.round((dailyTotals.protein / goals.protein) * 100) : 0}
         />
         <StatCard
-          label="Carboidrati" value={dailyTotals.carbs.toFixed(1)} unit="g" icon="🌾" gradient="from-yellow-400 to-orange-500"
+          label="Carboidrati" value={dailyTotals.carbs.toFixed(1)} unit="g" goal={goals.carbs} tone="amber"
           percentage={goals.carbs > 0 ? Math.round((dailyTotals.carbs / goals.carbs) * 100) : 0}
         />
         <StatCard
-          label="Grassi" value={dailyTotals.fat.toFixed(1)} unit="g" icon="🥑" gradient="from-green-400 to-emerald-600"
+          label="Grassi" value={dailyTotals.fat.toFixed(1)} unit="g" goal={goals.fat} tone="emerald"
           percentage={goals.fat > 0 ? Math.round((dailyTotals.fat / goals.fat) * 100) : 0}
         />
       </div>
 
       {/* INPUT FORM */}
-      <div className="bg-slate-900 rounded-2xl border border-violet-700 border-opacity-30 p-3 xs:p-4 sm:p-8 mb-6 xs:mb-8 backdrop-blur-sm hover:border-opacity-70 transition-all duration-300">
-        <h2 className="text-xl xs:text-2xl font-bold mb-4 xs:mb-6 text-white flex items-center gap-2">
-          <span className="text-2xl xs:text-3xl">📝</span> Aggiungi un pasto
-        </h2>
-        <div className="grid grid-cols-1 xs:grid-cols-1 md:grid-cols-12 gap-2 xs:gap-3">
-          <select
-            className="md:col-span-3 px-4 py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all cursor-pointer"
-            value={category} onChange={(e) => setCategory(e.target.value)}
-          >
-            {['Colazione', 'Pranzo', 'Cena', 'Spuntino'].map(c => <option key={c} className="bg-slate-900">{c}</option>)}
-          </select>
-          <FoodAutocomplete
-            value={meal}
-            onChange={(e) => setMeal(e.target.value)}
-            onSelect={(food) => { setMeal(food.name); setQuantityType(food.default_quantity_type); }}
-            foods={userFoods || []}
-            placeholder="Es: Pasta al pesto"
-            wrapperClassName="md:col-span-5"
-            inputClassName="w-full px-3 py-2 xs:px-4 xs:py-3 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-base"
-            inputRef={mealInputRef}
-          />
-          <div className="md:col-span-2 flex gap-1 items-center">
+      <div className="mb-6 rounded-2xl border border-violet-400/25 bg-zinc-950 bg-gradient-to-br from-violet-500/25 to-violet-500/[0.08] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold tracking-tight text-white">Aggiungi alimento</h2>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-12">
+          <div className="col-span-2 md:col-span-4">
+            <label className={labelClass}>Pasto</label>
+            <div className="relative">
+              <select className={selectClass} value={category} onChange={(e) => setCategory(e.target.value)}>
+                {['Colazione', 'Pranzo', 'Cena', 'Spuntino'].map(c => (
+                  <option key={c} className="bg-zinc-900">{c}</option>
+                ))}
+              </select>
+              <SelectChevron />
+            </div>
+          </div>
+          <div className="col-span-2 md:col-span-8">
+            <label className={labelClass}>Alimento</label>
+            <FoodAutocomplete
+              value={meal}
+              onChange={(e) => setMeal(e.target.value)}
+              onSelect={(food) => { setMeal(food.name); setQuantityType(food.default_quantity_type); }}
+              foods={userFoods || []}
+              placeholder="Es: pasta al pesto"
+              inputClassName={inputClass}
+              inputRef={mealInputRef}
+            />
+          </div>
+          <div className="col-span-1 md:col-span-4">
+            <label className={labelClass}>Quantità</label>
             <input
-              className="w-20 px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all placeholder-gray-500 text-base"
-              type="number" min="0" step="any" placeholder="Quantità"
+              className={inputClass}
+              type="number" min="0" step="any" placeholder="Es: 150"
               value={quantity} onChange={e => setQuantity(e.target.value)}
             />
-            <select
-              className="px-2 py-2 rounded-xl bg-slate-800 border border-violet-700 border-opacity-30 text-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500 focus:ring-opacity-30 outline-none transition-all text-base xs:text-sm"
-              value={quantityType} onChange={e => setQuantityType(e.target.value)}
-            >
-              <option value="grams">g</option>
-              <option value="unit">unità</option>
-              <option value="teaspoon">cucchiaino</option>
-              <option value="tablespoon">cucchiaio</option>
-            </select>
           </div>
-          <button
-            onClick={handleAddMeal} disabled={loading}
-            className={`md:col-span-2 px-3 py-2 xs:px-4 xs:py-3 rounded-xl font-bold text-white transition-all active:scale-95 transform text-sm xs:text-base ${
-              loading ? 'bg-slate-700 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:shadow-lg hover:shadow-violet-500/50 hover:-translate-y-0.5'
-            }`}
-          >
-            {loading ? '⏳' : '✚ Aggiungi'}
-          </button>
+          <div className="col-span-1 md:col-span-4">
+            <label className={labelClass}>Unità</label>
+            <div className="relative">
+              <select className={selectClass} value={quantityType} onChange={e => setQuantityType(e.target.value)}>
+                <option value="grams">grammi (g)</option>
+                <option value="unit">unità</option>
+                <option value="teaspoon">cucchiaino</option>
+                <option value="tablespoon">cucchiaio</option>
+              </select>
+              <SelectChevron />
+            </div>
+          </div>
+          <div className="col-span-2 flex items-end md:col-span-4">
+            <button
+              onClick={handleAddMeal} disabled={loading}
+              className={`flex h-[46px] w-full items-center justify-center gap-2 rounded-xl text-[15px] font-semibold transition-colors ${
+                loading
+                  ? 'cursor-not-allowed bg-zinc-800 text-zinc-500'
+                  : 'bg-violet-600 text-white hover:bg-violet-500 active:bg-violet-600'
+              }`}
+            >
+              {loading ? (
+                <>
+                  <SpinnerIcon size={17} /> Analisi in corso...
+                </>
+              ) : (
+                <>
+                  <PlusIcon size={17} /> Aggiungi
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* LISTA PASTI */}
       <div>
-        <div className="flex justify-between items-center mb-6 px-2">
-          <h3 className="font-bold text-2xl text-white flex items-center gap-2">
-            <span className="text-3xl">📋</span> Pasti della giornata
-          </h3>
+        <div className="mb-3 flex items-center justify-between px-1">
+          <h3 className="text-sm font-semibold tracking-tight text-white">Pasti della giornata</h3>
           {dailyLogs.length > 0 && (
-            <button onClick={clearLogs} className="text-sm text-gray-400 hover:text-pink-400 transition-colors font-semibold hover:underline">
-              🗑️ Svuota tutto
+            <button
+              onClick={clearLogs}
+              className="text-xs font-medium text-zinc-500 transition-colors hover:text-red-400"
+            >
+              Svuota giorno
             </button>
           )}
         </div>
 
         {dailyLogs.length === 0 && (
-          <div className="text-center py-20 bg-slate-900 bg-opacity-20 rounded-3xl border-2 border-dashed border-slate-800">
-            <p className="text-6xl mb-6">🍽️</p>
-            <p className="text-gray-400 text-lg">Nessun pasto registrato per questo giorno.</p>
-            <p className="text-gray-500 text-sm mt-2 italic">Aggiungi qualcosa di gustoso!</p>
+          <div className="rounded-2xl border border-dashed border-white/10 px-6 py-14 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-zinc-500">
+              <UtensilsIcon size={22} />
+            </div>
+            <p className="mt-4 text-sm font-medium text-zinc-300">Nessun pasto registrato</p>
+            <p className="mx-auto mt-1 max-w-xs text-xs text-zinc-500">
+              Aggiungi il tuo primo alimento per iniziare a tracciare la giornata.
+            </p>
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {dailyLogs.map((log) => (
             <MealSection
               key={log.id}

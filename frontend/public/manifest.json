@@ -4,8 +4,8 @@
   "description": "Your Daily Nutrition Monitor - Track calories, protein, carbs and fat with AI-powered food analysis",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f0f1e",
-  "theme_color": "#7c3aed",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "en",
@@ -30,7 +30,7 @@
     },
     {
       "src": "/favicon.svg",
-      "sizes": "48x46",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }

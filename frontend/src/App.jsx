@@ -6,6 +6,7 @@ import DishModal from './components/Modals/DishModal';
 import EditableStatCard from './components/UI/EditableStatCard';
 import LoadingScreen from './components/UI/LoadingScreen';
 import ApiKeySettings from './components/Settings/ApiKeySettings';
+import { MenuIcon } from './components/UI/Icons';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -180,12 +181,12 @@ const App = ({ user, onSignOut }) => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Errore caricamento meals:', error);
+        console.error('Errore caricamento meals:', error);
       } else {
         setLogs(normalizeMeals(data));
       }
     } catch (err) {
-      console.error('❌ Eccezione durante caricamento:', err);
+      console.error('Eccezione durante caricamento:', err);
     }
   }, [user.id, normalizeMeals]);
 
@@ -197,7 +198,7 @@ const App = ({ user, onSignOut }) => {
       .maybeSingle();
 
     if (error) {
-      console.error('❌ Errore caricamento goals:', error.message);
+      console.error('Errore caricamento goals:', error.message);
       setGoals({ calories: 2000, protein: 150, carbs: 250, fat: 70 });
     } else if (data) {
       setGoals({
@@ -209,7 +210,7 @@ const App = ({ user, onSignOut }) => {
     } else {
       const defaultGoals = { user_id: user.id, calories: 2000, protein: 150, carbs: 250, fat: 70 };
       const { error: insertError } = await supabase.from('goals').insert(defaultGoals);
-      if (insertError) console.error('❌ Errore inizializzazione goals:', insertError.message);
+      if (insertError) console.error('Errore inizializzazione goals:', insertError.message);
       setGoals({ calories: 2000, protein: 150, carbs: 250, fat: 70 });
     }
   }, [user.id]);
@@ -534,24 +535,34 @@ const handleUpdateGoal = useCallback((macro, value) => {
   if (syncLoading) return <LoadingScreen message="Sincronizzazione in corso..." />;
 
   return (
-    <div className="min-h-screen bg-slate-950 relative overflow-hidden text-white">
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-violet-600 rounded-full mix-blend-multiply opacity-10 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply opacity-10 blur-3xl"></div>
-      </div>
-
-      <button
-        onClick={() => setIsSidebarOpen(true)}
-        className="fixed top-0 left-0 z-50 p-3 mt-2 ml-2 bg-slate-900 border border-violet-700 border-opacity-50 rounded-xl text-white hover:bg-slate-800 transition-all shadow-lg shadow-violet-500/20"
-        style={{ position: 'fixed', top: 0, left: 0 }}
-        aria-label="Apri menu"
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <header
+        className="sticky top-0 z-40 border-b border-white/5 bg-zinc-950/80 backdrop-blur-lg"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <div className="space-y-1.5">
-          <div className="w-6 h-0.5 bg-white rounded-full"></div>
-          <div className="w-6 h-0.5 bg-white rounded-full"></div>
-          <div className="w-6 h-0.5 bg-white rounded-full"></div>
+        <div className="mx-auto flex h-14 max-w-4xl items-center gap-2 px-3 sm:px-4">
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
+            aria-label="Apri menu"
+          >
+            <MenuIcon size={22} />
+          </button>
+          <div className="flex items-center gap-2.5">
+            <img src="/icona.png" alt="" className="h-7 w-7 rounded-lg object-contain" />
+            <div className="leading-tight">
+              <h1 className="text-[15px] font-semibold tracking-tight text-white">Calories Calculator</h1>
+              <p className="text-[11px] text-zinc-500">
+                {currentView === 'goals'
+                  ? 'Obiettivi giornalieri'
+                  : currentView === 'settings'
+                  ? 'Impostazioni'
+                  : 'Diario alimentare'}
+              </p>
+            </div>
+          </div>
         </div>
-      </button>
+      </header>
 
       <Sidebar
         isSidebarOpen={isSidebarOpen}
@@ -564,49 +575,42 @@ const handleUpdateGoal = useCallback((macro, value) => {
         userEmail={user.email}
       />
 
-      <div className="relative z-10 min-h-screen p-2 pt-16 md:p-8 md:pt-8 font-sans">
-        <div className="max-w-full md:max-w-4xl mx-auto">
-
-          <header className="mb-8 text-center">
-            <div className="inline-block mb-2">
-              <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-500 to-purple-600 leading-tight">Calories Calculator</h1>
-              <p className="text-cyan-400 text-xs xs:text-sm tracking-widest mt-1 font-semibold">Your Daily Nutrition Monitor</p>
-            </div>
-          </header>
-
+      <main
+        className="mx-auto w-full max-w-4xl px-3 py-5 sm:px-4 md:py-8"
+        style={{ paddingBottom: 'calc(3rem + env(safe-area-inset-bottom))' }}
+      >
           {currentView === 'goals' ? (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <h2 className="text-3xl font-bold mb-8 text-white flex items-center gap-3 justify-center">
-                <span>🎯</span> Imposta i tuoi Obiettivi
-              </h2>
-              <p className="text-center text-gray-400 mb-8 max-w-lg mx-auto">
-                Modifica i valori qui sotto. Le percentuali nella pagina principale si aggiorneranno automaticamente. I dati verranno salvati quando clicchi fuori dal riquadro.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+            <div>
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold tracking-tight text-white">Obiettivi giornalieri</h2>
+                <p className="mt-1 text-sm text-zinc-400">
+                  Imposta i tuoi target di calorie e macronutrienti. Le modifiche vengono salvate
+                  automaticamente quando esci dal campo.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <EditableStatCard
-                  label="Obiettivo Calorie" value={goals.calories} unit="kcal" icon="🔥" gradient="from-orange-500 to-red-600"
+                  label="Calorie" value={goals.calories} unit="kcal" tone="orange"
                   onChange={(e) => handleUpdateGoal('calories', e.target.value)} onBlur={saveGoalsToDB}
                 />
                 <EditableStatCard
-                  label="Obiettivo Proteine" value={goals.protein} unit="g" icon="🥩" gradient="from-blue-500 to-cyan-600"
+                  label="Proteine" value={goals.protein} unit="g" tone="sky"
                   onChange={(e) => handleUpdateGoal('protein', e.target.value)} onBlur={saveGoalsToDB}
                 />
                 <EditableStatCard
-                  label="Obiettivo Carboidrati" value={goals.carbs} unit="g" icon="🌾" gradient="from-yellow-400 to-orange-500"
+                  label="Carboidrati" value={goals.carbs} unit="g" tone="amber"
                   onChange={(e) => handleUpdateGoal('carbs', e.target.value)} onBlur={saveGoalsToDB}
                 />
                 <EditableStatCard
-                  label="Obiettivo Grassi" value={goals.fat} unit="g" icon="🥑" gradient="from-green-400 to-emerald-600"
+                  label="Grassi" value={goals.fat} unit="g" tone="emerald"
                   onChange={(e) => handleUpdateGoal('fat', e.target.value)} onBlur={saveGoalsToDB}
                 />
               </div>
             </div>
           ) : currentView === 'settings' ? (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <ApiKeySettings user={user} />
-            </div>
+            <ApiKeySettings user={user} />
           ) : (
-            <div className="animate-in fade-in duration-500">
+            <div>
               <DayCard
                 selectedDate={selectedDate}
                 setSelectedDate={setSelectedDate}
@@ -635,8 +639,7 @@ const handleUpdateGoal = useCallback((macro, value) => {
               />
             </div>
           )}
-        </div>
-      </div>
+      </main>
 
       <DishModal
         showDishModal={showDishModal}

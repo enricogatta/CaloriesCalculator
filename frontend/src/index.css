@@ -1,24 +1,77 @@
 @import "tailwindcss";
 
-body {
-  background-color: #0f0f1e;
-  color: #ffffff;
+:root {
+  color-scheme: dark;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: #09090b;
+  color: #fafafa;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Font-size >= 16px sugli input: impedisce a iOS Safari lo zoom automatico al focus */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Scrollbar discrete (desktop) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1a2e;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #7c3aed;
-  border-radius: 4px;
+  background: #4c1d95;
+  border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #6d28d9;
+}
+
+/* Nasconde la scrollbar mantenendo lo scroll (usata dalla barra date) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Rimuove le freccette dagli input numerici per un look pulito */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Input date coerente col tema scuro su tutti i browser */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.55);
+  cursor: pointer;
 }

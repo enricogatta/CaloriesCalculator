@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { supabase } from '../../supabaseClient';
 
+const inputClass =
+  'w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-base text-white placeholder:text-zinc-600 outline-none transition-colors focus:border-violet-400/60';
+
 const AuthPage = () => {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
@@ -43,31 +46,30 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-slate-950 text-white relative overflow-hidden px-4">
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-950 via-slate-950 to-cyan-950 opacity-90" />
-
-      <div className="relative z-10 w-full max-w-sm">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-zinc-950 px-4 py-8 text-white">
+      <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="flex flex-col items-center gap-3 mb-8">
-          <div className="w-20 h-20 rounded-3xl bg-slate-900/80 border border-violet-500/30 shadow-2xl shadow-violet-500/20 flex items-center justify-center">
-            <img src="/icona.png" alt="Calories Calculator" className="w-14 h-14 object-contain" />
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl shadow-black/40">
+            <img src="/icona.png" alt="Calories Calculator" className="h-10 w-10 object-contain" />
           </div>
-          <p className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-300">
-            Calories Calculator
-          </p>
+          <div className="text-center">
+            <p className="text-xl font-semibold tracking-tight">Calories Calculator</p>
+            <p className="mt-0.5 text-sm text-zinc-500">Il tuo diario alimentare</p>
+          </div>
         </div>
 
         {/* Card */}
-        <div className="bg-slate-900/80 border border-violet-700/30 rounded-2xl p-6 shadow-2xl shadow-violet-900/20">
+        <div className="rounded-2xl border border-violet-400/25 bg-zinc-950 bg-gradient-to-br from-violet-500/25 to-violet-500/[0.08] p-5 sm:p-6">
           {/* Tab switcher */}
-          <div className="flex rounded-xl bg-slate-800/60 p-1 mb-6 gap-1">
+          <div className="mb-6 flex gap-1 rounded-xl bg-zinc-950 p-1">
             <button
               type="button"
               onClick={() => switchMode('login')}
-              className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
+              className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors ${
                 mode === 'login'
-                  ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-violet-600 text-white'
+                  : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               Accedi
@@ -75,10 +77,10 @@ const AuthPage = () => {
             <button
               type="button"
               onClick={() => switchMode('register')}
-              className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
+              className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors ${
                 mode === 'register'
-                  ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-violet-600 text-white'
+                  : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               Registrati
@@ -88,7 +90,7 @@ const AuthPage = () => {
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {mode === 'register' && (
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+                <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                   Nome
                 </label>
                 <input
@@ -96,48 +98,48 @@ const AuthPage = () => {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Il tuo nome"
-                  className="w-full bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 transition-colors text-sm"
+                  className={inputClass}
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                 Email
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="la@tua.email"
+                placeholder="nome@esempio.com"
                 required
-                className="w-full bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 transition-colors text-sm"
+                className={inputClass}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                 Password
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Minimo 6 caratteri"
                 required
                 minLength={6}
-                className="w-full bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 transition-colors text-sm"
+                className={inputClass}
               />
             </div>
 
             {error && (
-              <p className="text-red-400 text-sm bg-red-900/20 border border-red-700/30 rounded-xl px-4 py-3">
+              <p className="rounded-xl border border-red-400/20 bg-red-400/10 px-3.5 py-2.5 text-sm text-red-400">
                 {error}
               </p>
             )}
 
             {successMsg && (
-              <p className="text-green-400 text-sm bg-green-900/20 border border-green-700/30 rounded-xl px-4 py-3">
+              <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3.5 py-2.5 text-sm text-emerald-400">
                 {successMsg}
               </p>
             )}
@@ -145,7 +147,7 @@ const AuthPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl font-black text-sm bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white shadow-lg shadow-violet-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+              className="mt-1 flex h-[46px] w-full items-center justify-center rounded-xl bg-violet-600 text-[15px] font-semibold text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
             >
               {loading ? 'Attendere...' : mode === 'login' ? 'Accedi' : 'Crea account'}
             </button>

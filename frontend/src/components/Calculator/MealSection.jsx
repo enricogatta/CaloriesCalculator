@@ -1,5 +1,19 @@
 import React, { useMemo } from 'react';
 import NutrientBadge from '../UI/NutrientBadge';
+import { PlusIcon, PencilIcon, TrashIcon } from '../UI/Icons';
+
+const UNIT_LABELS = {
+  grams: 'g',
+  unit: 'unità',
+  teaspoon: 'cucchiaino',
+  tablespoon: 'cucchiaio',
+};
+
+const formatQuantity = (dish) => {
+  const unit = UNIT_LABELS[dish.quantityType] ?? dish.quantityType;
+  const base = `${dish.quantity} ${unit}`;
+  return dish.quantityType !== 'grams' ? `${base} (${dish.grams} g)` : base;
+};
 
 const MealSection = ({ id, category, dishes, onEditDish, onDeleteDish, onDeleteMeal, onAddDish }) => {
   const cardTotals = useMemo(() => dishes.reduce((cAcc, dish) => ({
@@ -7,58 +21,83 @@ const MealSection = ({ id, category, dishes, onEditDish, onDeleteDish, onDeleteM
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 }), [dishes]);
 
   return (
-    <div className="bg-slate-900 border border-violet-700 border-opacity-30 p-6 rounded-2xl hover:border-opacity-70 transition-all duration-300 group hover:shadow-lg hover:shadow-violet-500/20 hover:-translate-y-0.5">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-violet-300 bg-slate-800 px-3 py-1.5 rounded-full border border-violet-700 border-opacity-30">
-            {category}
-          </span>
-          <div className="flex flex-wrap gap-2 mt-3">
-            <NutrientBadge label="kcal" value={cardTotals.calories.toFixed(0)} color="text-orange-400" />
-            <NutrientBadge label="PRO" value={cardTotals.protein.toFixed(1)} color="text-blue-400" />
-            <NutrientBadge label="CHO" value={cardTotals.carbs.toFixed(1)} color="text-yellow-400" />
-            <NutrientBadge label="FAT" value={cardTotals.fat.toFixed(1)} color="text-green-400" />
-          </div>
+    <section className="overflow-hidden rounded-2xl border border-violet-400/25 bg-zinc-950 bg-gradient-to-br from-violet-500/25 to-violet-500/[0.08]">
+      <div className="flex items-center justify-between gap-3 px-4 pt-4 sm:px-5">
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold tracking-tight text-white">{category}</h4>
+          <p className="mt-0.5 text-xs text-zinc-500 tabular-nums">
+            {cardTotals.calories.toFixed(0)} kcal · {dishes.length} {dishes.length === 1 ? 'piatto' : 'piatti'}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => onDeleteMeal(id)} className="text-xs text-red-400 hover:text-red-500 font-semibold transition-colors opacity-60 hover:opacity-100">
-            Elimina pasto
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={() => onAddDish(id, category)}
+            className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-violet-400 transition-colors hover:bg-violet-400/10"
+          >
+            <PlusIcon size={15} /> Piatto
           </button>
-          <button onClick={() => onAddDish(id, category)} className="text-xs text-violet-400 hover:text-violet-200 font-semibold transition-colors bg-slate-800 px-3 py-1.5 rounded-lg border border-violet-700 border-opacity-30">
-            + Nuovo piatto
+          <button
+            onClick={() => onDeleteMeal(id)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-red-400/10 hover:text-red-400"
+            aria-label="Elimina pasto"
+            title="Elimina pasto"
+          >
+            <TrashIcon size={15} />
           </button>
         </div>
       </div>
 
-      <div className="space-y-3 mt-4">
-        {dishes.map((dish) => (
-          <div key={dish.id} className="bg-slate-800 rounded-xl p-4 flex justify-between items-center border border-violet-700 border-opacity-10 hover:border-opacity-40 transition-all group/item">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="text-sm text-white font-bold">{dish.food}</p>
-                <span className="text-[10px] text-gray-500 font-bold bg-slate-900 px-2 py-0.5 rounded-md uppercase tracking-tighter">
-                  {dish.quantity}{dish.quantityType === 'grams' ? 'g' : dish.quantityType === 'unit' ? 'unità' : dish.quantityType === 'teaspoon' ? 'cucchiaino' : 'cucchiaio'}{dish.quantityType !== 'grams' ? ` (${dish.grams}g)` : ''}
-                </span>
-              </div>
-              <div className="flex gap-3 mt-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-tighter">
-                <span>🔥 {dish.calories.toFixed(0)} kcal</span>
-                <span>🥩 {dish.protein.toFixed(1)}g pro</span>
-                <span>🌾 {dish.carbs.toFixed(1)}g cho</span>
-                <span>🥑 {dish.fat.toFixed(1)}g fat</span>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => onEditDish(id, dish)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-violet-600 text-white transition-all transform active:scale-90" title="Modifica">
-                ✏️
-              </button>
-              <button onClick={() => onDeleteDish(id, dish.id)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-red-500 text-white transition-all transform active:scale-90">
-                ✕
-              </button>
-            </div>
-          </div>
-        ))}
+      <div className="flex flex-wrap gap-1.5 px-4 pt-3 pb-4 sm:px-5">
+        <NutrientBadge label="Pro" value={cardTotals.protein.toFixed(1)} color="bg-sky-400" />
+        <NutrientBadge label="Carb" value={cardTotals.carbs.toFixed(1)} color="bg-amber-400" />
+        <NutrientBadge label="Grassi" value={cardTotals.fat.toFixed(1)} color="bg-emerald-400" />
       </div>
-    </div>
+
+      <ul className="divide-y divide-white/5 border-t border-white/5">
+        {dishes.map((dish) => (
+          <li
+            key={dish.id}
+            className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-white/[0.02] sm:px-5"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2">
+                <p className="truncate text-sm font-medium text-zinc-100 capitalize">{dish.food}</p>
+                <span className="shrink-0 text-xs text-zinc-500 tabular-nums">{formatQuantity(dish)}</span>
+              </div>
+              <p className="mt-1 text-xs text-zinc-500 tabular-nums">
+                <span className="font-semibold text-sky-400/90">P</span> {dish.protein.toFixed(1)} g
+                <span className="mx-1.5 text-zinc-700">·</span>
+                <span className="font-semibold text-amber-400/90">C</span> {dish.carbs.toFixed(1)} g
+                <span className="mx-1.5 text-zinc-700">·</span>
+                <span className="font-semibold text-emerald-400/90">G</span> {dish.fat.toFixed(1)} g
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="mr-1 text-sm font-semibold text-white tabular-nums">
+                {dish.calories.toFixed(0)}
+                <span className="ml-0.5 text-[10px] font-medium text-zinc-500">kcal</span>
+              </span>
+              <button
+                onClick={() => onEditDish(id, dish)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-white"
+                aria-label="Modifica piatto"
+                title="Modifica"
+              >
+                <PencilIcon size={15} />
+              </button>
+              <button
+                onClick={() => onDeleteDish(id, dish.id)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-red-400/10 hover:text-red-400"
+                aria-label="Elimina piatto"
+                title="Elimina"
+              >
+                <TrashIcon size={15} />
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 };
 

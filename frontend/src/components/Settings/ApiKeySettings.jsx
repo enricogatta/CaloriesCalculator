@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
+import { CheckIcon, AlertIcon } from '../UI/Icons';
 
 const ApiKeySettings = ({ user }) => {
   const [keyInput, setKeyInput] = useState('');
@@ -47,33 +48,36 @@ const ApiKeySettings = ({ user }) => {
   };
 
   return (
-    <div className="max-w-lg mx-auto">
-      <h2 className="text-3xl font-bold mb-8 text-white flex items-center gap-3 justify-center">
-        <span>🔑</span> Chiave API Gemini
-      </h2>
+    <div className="mx-auto max-w-lg">
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold tracking-tight text-white">Chiave API Gemini</h2>
+        <p className="mt-1 text-sm text-zinc-400">
+          La chiave viene usata per analizzare gli alimenti con Google Gemini AI.
+        </p>
+      </div>
 
-      <div className="bg-slate-900 border border-violet-700/40 rounded-2xl p-6 shadow-xl">
+      <div className="rounded-2xl border border-violet-400/25 bg-zinc-950 bg-gradient-to-br from-violet-500/25 to-violet-500/[0.08] p-5 sm:p-6">
         {loading ? (
-          <p className="text-gray-400 text-center py-4">Caricamento...</p>
+          <p className="py-4 text-center text-sm text-zinc-500">Caricamento...</p>
         ) : (
           <>
             <div className="mb-6">
-              <p className="text-gray-300 text-sm mb-1">Stato attuale</p>
+              <p className="mb-2 text-xs font-medium text-zinc-400">Stato attuale</p>
               {hasKey ? (
-                <div className="flex items-center gap-2 text-green-400 font-semibold">
-                  <span className="text-lg">✓</span>
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3.5 py-2.5 text-sm font-medium text-emerald-400">
+                  <CheckIcon size={16} />
                   <span>Chiave API impostata</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-yellow-400 font-semibold">
-                  <span className="text-lg">⚠</span>
+                <div className="flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 px-3.5 py-2.5 text-sm font-medium text-amber-400">
+                  <AlertIcon size={16} />
                   <span>Nessuna chiave API impostata</span>
                 </div>
               )}
             </div>
 
             <div className="mb-4">
-              <label className="block text-gray-300 text-sm font-semibold mb-2">
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                 {hasKey ? 'Aggiorna chiave API' : 'Inserisci la tua chiave API'}
               </label>
               <input
@@ -82,37 +86,36 @@ const ApiKeySettings = ({ user }) => {
                 onChange={(e) => { setKeyInput(e.target.value); setFeedback(null); }}
                 onKeyDown={handleKeyDown}
                 placeholder="AIzaSy..."
-                className="w-full bg-slate-800 border border-violet-700/50 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 font-mono text-sm"
+                className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 font-mono text-base text-white placeholder:text-zinc-600 outline-none transition-colors focus:border-violet-400/60"
               />
             </div>
 
             <button
               onClick={handleSave}
               disabled={saving || !keyInput.trim()}
-              className="w-full py-3 rounded-xl font-bold transition-all bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex h-[46px] w-full items-center justify-center rounded-xl bg-violet-600 text-[15px] font-semibold text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
             >
               {saving ? 'Salvataggio...' : 'Salva chiave API'}
             </button>
 
             {feedback && (
-              <p className={`mt-4 text-sm text-center font-medium ${feedback.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`mt-4 text-center text-sm font-medium ${feedback.type === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
                 {feedback.msg}
               </p>
             )}
 
-            <div className="mt-6 pt-5 border-t border-violet-700/30">
-              <p className="text-gray-400 text-xs leading-relaxed">
-                La chiave API viene usata per analizzare i tuoi alimenti tramite Google Gemini AI.
-                Puoi ottenerne una gratuita su{' '}
+            <div className="mt-6 border-t border-white/5 pt-5">
+              <p className="text-xs leading-relaxed text-zinc-500">
+                Puoi ottenere una chiave gratuita su{' '}
                 <a
                   href="https://aistudio.google.com/app/apikey"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-violet-400 hover:text-violet-300 underline"
+                  className="font-medium text-violet-400 underline-offset-2 hover:underline"
                 >
                   Google AI Studio
                 </a>
-                .
+                . La chiave viene salvata nel tuo profilo e non lascia mai il server.
               </p>
             </div>
           </>

@@ -155,13 +155,13 @@ const FoodAutocomplete = ({
         <ul
           ref={dropdownRef}
           style={{ ...dropdownStyle, WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
-          className="fixed z-[9999] bg-slate-800 border border-violet-700 border-opacity-60 rounded-xl shadow-2xl overflow-y-auto max-h-[220px] overscroll-contain"
+          className="fixed z-[9999] max-h-[220px] overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-zinc-900 shadow-2xl shadow-black/50"
         >
           {filtered.map((food, i) => (
             <li
               key={`${food.name}-${food.default_quantity_type}`}
-              className={`px-4 py-3 cursor-pointer flex justify-between items-center text-sm transition-colors min-h-[44px] ${
-                i === activeIndex || i === pressedIndex ? 'bg-violet-700 text-white' : 'text-white hover:bg-slate-700'
+              className={`flex min-h-[44px] cursor-pointer items-center justify-between px-4 py-3 text-sm transition-colors ${
+                i === activeIndex || i === pressedIndex ? 'bg-violet-600/25 text-white' : 'text-zinc-200 hover:bg-white/5'
               }`}
               onMouseDown={(e) => { e.preventDefault(); handleSelect(food); }}
               onTouchStart={(e) => {
@@ -184,7 +184,7 @@ const FoodAutocomplete = ({
               }}
             >
               <span className="capitalize">{food.name}</span>
-              <span className={`text-xs ml-2 shrink-0 ${i === activeIndex ? 'text-violet-200' : 'text-gray-400'}`}>
+              <span className={`ml-2 shrink-0 text-xs ${i === activeIndex ? 'text-zinc-300' : 'text-zinc-500'}`}>
                 {UNIT_LABELS[food.default_quantity_type] ?? food.default_quantity_type}
               </span>
             </li>
