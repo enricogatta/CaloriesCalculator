@@ -1,7 +1,7 @@
 -- ============================================================
 -- CaloriesCalculator — Schema Supabase (stato attuale)
 -- Progetto: bfoslaydcsffzruubwrx.supabase.co
--- Aggiornato: 2026-10-27 (dopo migrations/2026-10-27_redesign.sql)
+-- Aggiornato: 2026-10-27 (dopo migrations/2026-10-27_groq.sql)
 --
 -- Fonte di verità della struttura del DB: quando cambi tabelle, colonne,
 -- policy o funzioni, aggiorna questo file e aggiungi una migrazione in
@@ -15,14 +15,14 @@
 -- ============================================================
 -- TABELLA: profiles
 -- Creata automaticamente al signup tramite trigger.
--- gemini_api_key NON è leggibile dal browser (column privileges):
--- il frontend usa has_gemini_api_key(), la Netlify Function la legge
--- con la secret key.
+-- ai_api_key (chiave Groq dell'utente) NON è leggibile dal browser
+-- (column privileges): il frontend usa has_ai_api_key(), la Netlify
+-- Function la legge con la secret key.
 -- ============================================================
 create table public.profiles (
   id uuid not null references auth.users(id) on delete cascade,
   display_name text,
-  gemini_api_key text,
+  ai_api_key text,
   created_at timestamp with time zone not null default now(),
   constraint profiles_pkey primary key (id)
 );
@@ -67,10 +67,10 @@ create trigger on_auth_user_created
 
 
 -- ============================================================
--- FUNZIONE: has_gemini_api_key()
+-- FUNZIONE: has_ai_api_key()
 -- Dice al frontend se l'utente ha una chiave, senza esporla.
 -- ============================================================
-create or replace function public.has_gemini_api_key()
+create or replace function public.has_ai_api_key()
 returns boolean
 language sql
 stable
@@ -78,15 +78,15 @@ security definer
 set search_path = public
 as $$
   select coalesce(
-    (select length(trim(coalesce(gemini_api_key, ''))) > 0
+    (select length(trim(coalesce(ai_api_key, ''))) > 0
        from public.profiles
       where id = auth.uid()),
     false
   );
 $$;
 
-revoke execute on function public.has_gemini_api_key() from public, anon;
-grant execute on function public.has_gemini_api_key() to authenticated;
+revoke execute on function public.has_ai_api_key() from public, anon;
+grant execute on function public.has_ai_api_key() to authenticated;
 
 
 -- ============================================================

@@ -55,7 +55,7 @@ export function useDiary(date) {
 
   /**
    * Aggiunge o modifica un piatto. I valori arrivano dalla libreria se il cibo
-   * c'è già (stesso nome e unità), altrimenti da Gemini, e il cibo viene salvato.
+   * c'è già (stesso nome e unità), altrimenti dall'AI, e il cibo viene salvato.
    * @returns {Promise<{error: {code: string, message: string}|null}>}
    */
   async function saveDish({ category, card, dish, foodName, quantity, quantityType }) {

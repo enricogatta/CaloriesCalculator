@@ -2,7 +2,7 @@
 name: Design System — CaloriesCalculator
 description: >-
   Design system e convenzioni del progetto CaloriesCalculator (diario calorie React + Supabase +
-  Gemini). Usala quando crei o modifichi componenti, pagine o stili in questo repository: elenca i
+  Groq). Usala quando crei o modifichi componenti, pagine o stili in questo repository: elenca i
   componenti già disponibili in app/src/components/ (Button, IconButton, FormField, Select,
   SegmentedControl, ChoiceGroup, Card, ProgressBar, EmptyState, Skeleton, BaseModal, ConfirmModal,
   NoticeModal, PageTitle, TabBar, FoodAutocomplete…), i token reali di index.css, useDialog al posto
@@ -96,7 +96,7 @@ Tailwind con `@theme inline`.
 | `--radius-md` / `-lg` / `-xl` | `0.75rem` / `1.25rem` / `1.75rem` (input / card / modali) |
 | `--font-sans` | stack di sistema (`-apple-system`, SF Pro Text, Segoe UI, Roboto…) |
 | Animazioni | `animate-sheet-in` (260ms), `animate-fade-in` (200ms), `animate-pop-in` (200ms) |
-| Utility custom | `glass`, `pt-safe`, `pb-safe-6`, `pb-tabbar`, `bottom-tabbar`, `max-h-sheet`, `min-h-screen-dvh` |
+| Utility custom | `glass`, `pt-safe`, `pb-safe-6`, `pb-tabbar`, `bottom-tabbar`, `max-h-sheet`, `min-h-screen-dvh`, `h-page` (altezza fra header e tab bar, per liste che scorrono al proprio interno) |
 
 Contrasti verificati annotati in testa a `index.css`. Palette dei macro validata con la skill
 `dataviz` (CVD all-pairs, entrambi i temi); le kcal non hanno colore proprio (usano `bg-content`).
@@ -168,7 +168,7 @@ quando l'app torna in primo piano dopo 60s) · `DialogContext.jsx` (monta un Con
 | foods | `services/foodsService.js` | `getFoods`, `upsertFood`, `createFood`, `updateFood`, `deleteFood`, `countFoodUsage`, `recalculateFoodItems` |
 | meals | `services/mealsService.js` | `getMealCardsByDate` (raggruppa per categoria), `getLoggedDates`, `getDailyTotals`, `createMeal`, `addMealItem`, `updateMealItem`, `deleteMealItem`, `deleteMeals`, `deleteMealsByDate` |
 | goals | `services/goalsService.js` | `getGoals`, `saveGoals` (upsert su `user_id`) |
-| profile | `services/profileService.js` | `hasGeminiApiKey` (RPC), `saveGeminiApiKey`, `removeGeminiApiKey` |
+| profile | `services/profileService.js` | `hasAiApiKey` (RPC), `saveAiApiKey`, `removeAiApiKey` (chiave Groq) |
 | dates | `utils/dates.js` | Date locali `'YYYY-MM-DD'`: `toDateStr`, `parseDateStr`, `todayStr`, `addDays`, `startOfWeek`, `dateRange`, formatter italiani |
 | nutrition | `utils/nutrition.js` | Costanti (`MEAL_CATEGORIES`, `QUANTITY_TYPES`, `UNIT_LABELS`, `PER_LABELS`, `MACROS`, `DEFAULT_GOALS`) e calcoli (`findFood`, `portionFromFood`, `perUnitFromAnalysis`, `sumMacros`, `formatNumber`, `formatInteger`) |
 | scrollLock | `utils/scrollLock.js` | Blocco scroll compatibile iOS con contatore per modali annidati |
@@ -180,7 +180,7 @@ Da `docs/schema.sql` (aggiornato al 2026-10-27).
 
 | Tabella | Colonne principali | RLS | Policy |
 |---|---|---|---|
-| `profiles` | id, display_name, gemini_api_key, created_at | ✅ | select/insert/update propri; `gemini_api_key` non leggibile da `anon`/`authenticated` (column privileges) |
+| `profiles` | id, display_name, ai_api_key, created_at | ✅ | select/insert/update propri; `ai_api_key` non leggibile da `anon`/`authenticated` (column privileges) |
 | `goals` | user_id (unique), calories, protein, carbs, fat | ✅ | select/insert/update/delete propri |
 | `meals` | user_id, category, date | ✅ | select/insert/update/delete propri |
 | `foods` | user_id, name, default_quantity_type, *_per_unit, grams_per_unit | ✅ | select/insert/update/delete propri |
@@ -189,7 +189,7 @@ Da `docs/schema.sql` (aggiornato al 2026-10-27).
 **Relazioni:** `profiles/goals/meals/foods.user_id → auth.users` (cascade) · `meal_items.meal_id → meals`
 (cascade) · `meal_items.food_id → foods` (**restrict**).
 
-**Funzioni:** `handle_new_user()` (trigger al signup) · `has_gemini_api_key()` (security definer) ·
+**Funzioni:** `handle_new_user()` (trigger al signup) · `has_ai_api_key()` (security definer) ·
 `recalculate_food_items(uuid)` (security invoker).
 
 **Regola:** quando modifichi tabelle, colonne o policy, aggiorna `docs/schema.sql` e aggiungi una
@@ -199,7 +199,7 @@ migrazione `docs/migrations/YYYY-MM-DD_nome.sql` nello stesso intervento.
 
 | Function | File | Metodo | Cosa fa | Auth richiesta |
 |---|---|---|---|---|
-| `analyze` | `app/netlify/functions/analyze.js` | POST | Valori nutrizionali di una porzione da Gemini | Sì: JWT Supabase verificato, 401 altrimenti |
+| `analyze` | `app/netlify/functions/analyze.js` | POST | Valori nutrizionali di una porzione da un modello su Groq | Sì: JWT Supabase verificato, 401 altrimenti |
 
 Codice condiviso in `netlify/functions/_shared/supabase.js` (`getAdmin`, `getUser`, `json`, `log`).
 Errori al client come `{ error: <codice>, message: <testo> }`.
@@ -238,6 +238,6 @@ Errori al client come `{ error: <codice>, message: <testo> }`.
 - [ ] `foods.default_quantity_type` e `meal_items.quantity_type` senza check sui 4 valori ammessi.
 - [ ] Naming delle Netlify Functions: c'è una sola function (`analyze.js`), convenzione non deducibile.
 - [ ] Nessun alias di import (`@/`).
-- [ ] Nessun rate limiting su `/api/analyze` (scelta consapevole: la chiave di riserva vale solo per `GEMINI_FALLBACK_USER_ID`).
+- [ ] Nessun rate limiting su `/api/analyze` (scelta consapevole: la chiave di riserva vale solo per `AI_FALLBACK_USER_ID`).
 - [ ] Nessun service worker: offline e avviso di aggiornamento non gestiti.
 - [ ] Bundle JS unico da ~530 kB (159 kB gzip): nessun code splitting delle pagine.

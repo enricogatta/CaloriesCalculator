@@ -105,7 +105,7 @@ export function portionFromFood(food, quantity) {
 }
 
 /**
- * Valori per unità dal risultato di Gemini per una certa quantità.
+ * Valori per unità dal risultato dell'AI per una certa quantità.
  * @param {{grams:number, calories:number, protein:number, carbs:number, fat:number}} analysis
  * @param {number} quantity
  * @param {string} quantityType

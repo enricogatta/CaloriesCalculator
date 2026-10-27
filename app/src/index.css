@@ -187,6 +187,13 @@
   padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 2rem);
 }
 
+/* Altezza utile fra header e tab bar, per le pagine con una lista che scorre
+   al proprio interno. Numeri di AppShell: header h-16 + pt-safe, main pt-4, pb-tabbar */
+@utility h-page {
+  height: calc(100vh - 4rem - env(safe-area-inset-top) - 1rem - var(--tabbar-height) - env(safe-area-inset-bottom) - 2rem);
+  height: calc(100dvh - 4rem - env(safe-area-inset-top) - 1rem - var(--tabbar-height) - env(safe-area-inset-bottom) - 2rem);
+}
+
 @utility bottom-tabbar {
   bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
 }

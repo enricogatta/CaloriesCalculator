@@ -41,7 +41,7 @@ async function requestAnalysis(body) {
 }
 
 /**
- * Valori nutrizionali di una porzione calcolati da Gemini (Netlify Function analyze).
+ * Valori nutrizionali di una porzione stimati dall'AI su Groq (Netlify Function analyze).
  * @param {{meal: string, quantity: number, quantityType: string}} body
  * @returns {Promise<{data: {grams:number, calories:number, protein:number, carbs:number, fat:number}|null,
  *   error: {code: string, message: string}|null}>}

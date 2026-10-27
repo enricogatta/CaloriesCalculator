@@ -37,7 +37,7 @@ function validate({ foodName, quantity }) {
 /**
  * FoodFormModal component
  * Aggiunge o modifica un piatto. Se il cibo è già nella libreria mostra subito
- * i valori della porzione; altrimenti li calcola Gemini al salvataggio.
+ * i valori della porzione; altrimenti li calcola l'AI al salvataggio.
  * Il genitore lo monta solo quando serve, così lo stato riparte pulito a ogni apertura.
  * @param {string} mode - 'add' | 'edit'
  * @param {object} initial - { category, foodName, quantity, quantityType }
@@ -172,7 +172,7 @@ export function FoodFormModal({ mode, initial, lockCategory, foods, onClose, onS
         {!preview && !libraryFood && foodName.trim().length >= 2 && (
           <p className="flex items-start gap-2 rounded-md bg-surface-sunken p-4 text-sm text-content-muted">
             <span className="flex h-5 shrink-0 items-center" aria-hidden="true"><Sparkles className="size-4" /></span>
-            Alimento nuovo per questa unità: i valori li calcola Gemini quando salvi.
+            Alimento nuovo per questa unità: i valori li calcola l'AI quando salvi.
           </p>
         )}
 

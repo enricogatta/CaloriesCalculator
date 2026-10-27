@@ -10,6 +10,7 @@ import { inputClass } from '../components/ui/fieldStyles'
 import { useAuth } from '../hooks/useAuth'
 import { useData } from '../hooks/useData'
 import { useDialog } from '../hooks/useDialog'
+import { analyzeFood } from '../services/analyzeApi'
 import {
   countFoodUsage,
   createFood,
@@ -110,7 +111,7 @@ export function AlimentiPage() {
     }
     const ok = await confirm({
       title: `Eliminare «${food.name}»?`,
-      message: 'Sparisce dalla libreria e dai suggerimenti. Se lo aggiungerai di nuovo, i valori li ricalcolerà Gemini.',
+      message: 'Sparisce dalla libreria e dai suggerimenti. Se lo aggiungerai di nuovo, i valori li ricalcolerà l\'AI.',
       confirmLabel: 'Elimina',
       tone: 'danger',
     })
@@ -125,58 +126,65 @@ export function AlimentiPage() {
 
   return (
     <>
-      <PageTitle
-        eyebrow="Libreria"
-        title="I tuoi"
-        accent="alimenti."
-        description="Ogni cibo che aggiungi al diario finisce qui con i suoi valori: le volte dopo non serve richiamare l'AI."
-      />
+      {/* La pagina occupa lo spazio fra header e tab bar: scorre solo l'elenco */}
+      <div className="flex h-page flex-col">
+        <PageTitle
+          eyebrow="Libreria"
+          title="I tuoi"
+          accent="alimenti."
+          description="Ogni cibo che aggiungi al diario finisce qui con i suoi valori: le volte dopo non serve richiamare l'AI."
+        />
 
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-content-muted" aria-hidden="true" />
-          <input
-            type="search"
-            aria-label="Cerca un alimento"
-            placeholder="Cerca"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className={`${inputClass()} pl-12`}
-          />
+        <div className="mb-6 flex gap-3">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-content-muted" aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Cerca un alimento"
+              placeholder="Cerca"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className={`${inputClass()} pl-12`}
+            />
+          </div>
+          {/* Su mobile solo "Nuovo", per lasciare spazio alla ricerca sulla stessa riga */}
+          <Button icon={Plus} onClick={() => setEditing({ food: null })} aria-label="Nuovo alimento" className="shrink-0">
+            <span>Nuovo<span className="hidden sm:inline"> alimento</span></span>
+          </Button>
         </div>
-        <Button icon={Plus} onClick={() => setEditing({ food: null })}>Nuovo alimento</Button>
+
+        {foods.length === 0 && (
+          <EmptyState
+            icon={Apple}
+            title="La libreria è vuota"
+            description="Si riempie da sola quando aggiungi alimenti al diario. Puoi anche crearne uno a mano con i valori dell'etichetta."
+          />
+        )}
+
+        {foods.length > 0 && visibleFoods.length === 0 && (
+          <EmptyState
+            icon={Search}
+            title={`Nessun alimento contiene «${query.trim()}»`}
+            description="Controlla come l'hai scritto, oppure crealo con «Nuovo alimento»."
+          />
+        )}
+
+        {visibleFoods.length > 0 && (
+          <>
+            <p className="mb-2 px-4 text-sm text-content-muted" aria-live="polite">
+              {visibleFoods.length === 1 ? '1 alimento' : `${visibleFoods.length} alimenti`}
+            </p>
+            {/* Si accorcia fino a riempire lo spazio rimasto e scorre al suo interno */}
+            <Card as="div" className="min-h-40 overflow-y-auto overscroll-contain">
+              <ul aria-label="Elenco alimenti" className="divide-y divide-line">
+                {visibleFoods.map(food => (
+                  <FoodRow key={food.id} food={food} onOpen={() => setEditing({ food })} />
+                ))}
+              </ul>
+            </Card>
+          </>
+        )}
       </div>
-
-      {foods.length === 0 && (
-        <EmptyState
-          icon={Apple}
-          title="La libreria è vuota"
-          description="Si riempie da sola quando aggiungi alimenti al diario. Puoi anche crearne uno a mano con i valori dell'etichetta."
-        />
-      )}
-
-      {foods.length > 0 && visibleFoods.length === 0 && (
-        <EmptyState
-          icon={Search}
-          title={`Nessun alimento contiene «${query.trim()}»`}
-          description="Controlla come l'hai scritto, oppure crealo con «Nuovo alimento»."
-        />
-      )}
-
-      {visibleFoods.length > 0 && (
-        <>
-          <p className="mb-2 px-4 text-sm text-content-muted" aria-live="polite">
-            {visibleFoods.length === 1 ? '1 alimento' : `${visibleFoods.length} alimenti`}
-          </p>
-          <Card as="div" className="overflow-hidden">
-            <ul className="divide-y divide-line">
-              {visibleFoods.map(food => (
-                <FoodRow key={food.id} food={food} onOpen={() => setEditing({ food })} />
-              ))}
-            </ul>
-          </Card>
-        </>
-      )}
 
       {editing && (
         <FoodEditModal
@@ -184,6 +192,7 @@ export function AlimentiPage() {
           onClose={() => setEditing(null)}
           onSubmit={(fields) => (editing.food ? handleUpdate(editing.food, fields) : handleCreate(fields))}
           onDelete={() => handleDelete(editing.food)}
+          onEstimate={analyzeFood}
         />
       )}
     </>

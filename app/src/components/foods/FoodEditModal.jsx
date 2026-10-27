@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { Trash2, TriangleAlert } from 'lucide-react'
+import { Sparkles, Trash2, TriangleAlert } from 'lucide-react'
 import { BaseModal } from '../modals/BaseModal'
 import { Button } from '../ui/Button'
 import { FormField } from '../ui/FormField'
@@ -65,17 +65,21 @@ function validate(form) {
  * Crea o corregge un alimento della libreria. I valori si inseriscono per 100 g
  * (come sulle etichette) o per 1 unità/cucchiaino/cucchiaio, e vengono salvati per unità.
  * Il tipo di unità non si cambia dopo la creazione: cambierebbe il significato dei piatti già registrati.
+ * "Calcola con l'AI" compila i valori con la stima dell'AI; si applicano solo toccando Salva.
  * Il genitore lo monta solo quando serve.
  * @param {object|null} food - Riga di foods da modificare, null per crearne una
  * @param {Function} onClose
  * @param {Function} onSubmit - (fields) => Promise<{ error: { field?: string, message: string } | null }>
  * @param {Function} onDelete - () => void, solo in modifica
+ * @param {Function} onEstimate - ({ meal, quantity, quantityType }) => Promise<{ data, error }>, come analyzeFood
  */
-export function FoodEditModal({ food, onClose, onSubmit, onDelete }) {
+export function FoodEditModal({ food, onClose, onSubmit, onDelete, onEstimate }) {
   const [form, setForm] = useState(() => initialForm(food))
   const [errors, setErrors] = useState({})
   const [submitError, setSubmitError] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [estimating, setEstimating] = useState(false)
+  const [estimated, setEstimated] = useState(false)
   const nameRef = useRef(null)
   const formId = useId()
 
@@ -86,6 +90,36 @@ export function FoodEditModal({ food, onClose, onSubmit, onDelete }) {
   const update = (key) => (event) => {
     setForm(prev => ({ ...prev, [key]: event.target.value }))
     setSubmitError(null)
+  }
+
+  // Chiede all'AI i valori per 100 g (o per 1 unità) e li mette nei campi, da controllare prima di salvare
+  const handleEstimate = async () => {
+    const name = form.name.trim()
+    if (name.length < 2 || name.length > 100) {
+      setErrors(prev => ({ ...prev, name: 'Scrivi il nome dell\'alimento (da 2 a 100 caratteri) per farlo calcolare all\'AI.' }))
+      return
+    }
+    const { quantityType } = form
+    const quantity = displayFactor(quantityType)
+    setSubmitError(null)
+    setEstimated(false)
+    setEstimating(true)
+    const { data, error } = await onEstimate({ meal: name, quantity, quantityType })
+    setEstimating(false)
+    if (error) {
+      setSubmitError(error.message)
+      return
+    }
+    setForm(prev => ({
+      ...prev,
+      calories: toInput(data.calories),
+      protein: toInput(data.protein),
+      carbs: toInput(data.carbs),
+      fat: toInput(data.fat),
+      gramsPerUnit: quantityType === 'grams' ? '' : toInput(data.grams / quantity),
+    }))
+    setErrors({})
+    setEstimated(true)
   }
 
   const handleSubmit = async (event) => {
@@ -125,7 +159,7 @@ export function FoodEditModal({ food, onClose, onSubmit, onDelete }) {
         <div className="flex flex-col gap-3">
           <div className="flex gap-3">
             <Button variant="secondary" onClick={onClose} disabled={saving} className="flex-1">Annulla</Button>
-            <Button type="submit" form={formId} loading={saving} className="flex-1">Salva</Button>
+            <Button type="submit" form={formId} loading={saving} disabled={estimating} className="flex-1">Salva</Button>
           </div>
           {isEdit && (
             <Button variant="danger-ghost" icon={Trash2} onClick={onDelete} disabled={saving} fullWidth>
@@ -156,7 +190,7 @@ export function FoodEditModal({ food, onClose, onSubmit, onDelete }) {
           hint={isEdit ? 'Non si cambia dopo la creazione: per un\'altra unità crea un nuovo alimento.' : undefined}
         >
           {(field) => (
-            <Select {...field} value={form.quantityType} onChange={update('quantityType')} disabled={isEdit}>
+            <Select {...field} value={form.quantityType} onChange={update('quantityType')} disabled={isEdit || estimating}>
               {QUANTITY_TYPES.map(type => (
                 <option key={type.value} value={type.value}>{type.label}</option>
               ))}
@@ -221,6 +255,17 @@ export function FoodEditModal({ food, onClose, onSubmit, onDelete }) {
             )}
           </FormField>
         )}
+
+        <div className="flex flex-col gap-2">
+          <Button variant="secondary" icon={Sparkles} loading={estimating} disabled={saving} onClick={handleEstimate} fullWidth>
+            {isEdit ? 'Ricalcola con l\'AI' : 'Calcola con l\'AI'}
+          </Button>
+          {estimated && (
+            <p role="status" className="text-sm text-content-muted">
+              Valori stimati dall'AI: controllali e tocca Salva per applicarli.
+            </p>
+          )}
+        </div>
 
         {submitError && (
           <p role="alert" className="flex items-start gap-2 rounded-md bg-danger/10 p-4 text-sm text-danger">

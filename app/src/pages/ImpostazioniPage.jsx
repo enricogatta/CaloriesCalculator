@@ -10,13 +10,16 @@ import { useAuth } from '../hooks/useAuth'
 import { useData } from '../hooks/useData'
 import { useDialog } from '../hooks/useDialog'
 import { useTheme } from '../hooks/useTheme'
-import { hasGeminiApiKey, removeGeminiApiKey, saveGeminiApiKey } from '../services/profileService'
+import { hasAiApiKey, removeAiApiKey, saveAiApiKey } from '../services/profileService'
 
 const THEME_OPTIONS = [
   { value: 'light', label: 'Chiaro' },
   { value: 'dark', label: 'Scuro' },
   { value: 'system', label: 'Sistema' },
 ]
+
+// Le chiavi Groq iniziano con gsk_ e non contengono spazi
+const GROQ_KEY_PATTERN = /^gsk_\S{20,}$/
 
 /**
  * Section component
@@ -33,7 +36,7 @@ function Section({ title, children }) {
 
 /**
  * ApiKeySection component
- * Stato della chiave Gemini (il browser sa solo se esiste, non la legge),
+ * Stato della chiave Groq (il browser sa solo se esiste, non la legge),
  * salvataggio e rimozione.
  */
 function ApiKeySection() {
@@ -48,7 +51,7 @@ function ApiKeySection() {
 
   useEffect(() => {
     let cancelled = false
-    hasGeminiApiKey().then(({ data, error }) => {
+    hasAiApiKey().then(({ data, error }) => {
       if (cancelled) return
       setLoadError(Boolean(error))
       setHasKey(data ?? false)
@@ -60,13 +63,13 @@ function ApiKeySection() {
     event.preventDefault()
     const key = keyInput.trim()
     setFeedback(null)
-    if (key.length < 20 || /\s/.test(key)) {
-      setInputError('Incolla la chiave completa da Google AI Studio: inizia di solito con "AIza" e non contiene spazi.')
+    if (!GROQ_KEY_PATTERN.test(key)) {
+      setInputError('Incolla la chiave completa da GroqCloud: inizia con «gsk_» e non contiene spazi.')
       return
     }
     setInputError(null)
     setSaving(true)
-    const { error } = await saveGeminiApiKey(user.id, key)
+    const { error } = await saveAiApiKey(user.id, key)
     setSaving(false)
     if (error) {
       setFeedback({ tone: 'danger', text: 'Salvataggio non riuscito. Controlla la connessione e riprova.' })
@@ -79,13 +82,13 @@ function ApiKeySection() {
 
   const handleRemove = async () => {
     const ok = await confirm({
-      title: 'Rimuovere la chiave Gemini?',
+      title: 'Rimuovere la chiave Groq?',
       message: 'Senza chiave potrai ancora usare gli alimenti già nella tua libreria, ma non analizzarne di nuovi.',
       confirmLabel: 'Rimuovi',
       tone: 'danger',
     })
     if (!ok) return
-    const { error } = await removeGeminiApiKey(user.id)
+    const { error } = await removeAiApiKey(user.id)
     if (error) {
       setFeedback({ tone: 'danger', text: 'Rimozione non riuscita. Riprova.' })
       return
@@ -95,7 +98,7 @@ function ApiKeySection() {
   }
 
   return (
-    <Section title="Chiave API Gemini">
+    <Section title="Chiave API Groq">
       {hasKey === null && <p className="text-base text-content-muted">Controllo la chiave…</p>}
       {hasKey !== null && loadError && (
         <p className="flex items-center gap-2 text-base text-warning">
@@ -124,7 +127,7 @@ function ApiKeySection() {
               type="password"
               autoComplete="off"
               spellCheck={false}
-              placeholder="AIza…"
+              placeholder="gsk_…"
               value={keyInput}
               onChange={(event) => { setKeyInput(event.target.value); setInputError(null); setFeedback(null) }}
               className={`${inputClass(inputError)} font-mono`}
@@ -147,12 +150,12 @@ function ApiKeySection() {
       <p className="text-sm text-content-muted">
         Una chiave gratuita si crea su{' '}
         <a
-          href="https://aistudio.google.com/app/apikey"
+          href="https://console.groq.com/keys"
           target="_blank"
           rel="noopener noreferrer"
           className="font-semibold text-accent-text underline-offset-2 hover:underline"
         >
-          Google AI Studio
+          GroqCloud
         </a>.
       </p>
     </Section>
@@ -161,7 +164,7 @@ function ApiKeySection() {
 
 /**
  * ImpostazioniPage
- * Aspetto (tema), chiave Gemini, ricarica dati, account.
+ * Aspetto (tema), chiave Groq, ricarica dati, account.
  */
 export function ImpostazioniPage() {
   const { user, signOut } = useAuth()
