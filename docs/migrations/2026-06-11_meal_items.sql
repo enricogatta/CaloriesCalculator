@@ -1,0 +1,60 @@
+-- ============================================================
+-- Migrazione 2026-06-11 — da meals.dishes (JSONB) a foods + meal_items
+-- GIÀ ESEGUITA. Conservata come storico; lo stato attuale è in ../schema.sql
+-- ============================================================
+
+-- 0. Assegnare user_id ai pasti esistenti (se ancora null).
+--    Sostituire <tuo-uuid> con l'UUID del proprio utente
+--    (da Supabase Dashboard → Authentication → Users).
+-- update public.meals
+--   set user_id = '<tuo-uuid>'
+--   where user_id is null;
+
+-- 1. Popola foods dai dishes JSONB esistenti
+--    (distinto per utente + nome + tipo; prende il primo valore trovato)
+-- INSERT INTO public.foods (user_id, name, default_quantity_type,
+--   calories_per_unit, protein_per_unit, carbs_per_unit, fat_per_unit)
+-- SELECT DISTINCT ON (m.user_id, lower(d->>'food'), d->>'quantityType')
+--   m.user_id,
+--   lower(d->>'food'),
+--   coalesce(nullif(d->>'quantityType',''), 'grams'),
+--   coalesce((d->>'caloriesPerUnit')::numeric, 0),
+--   coalesce((d->>'proteinPerUnit')::numeric, 0),
+--   coalesce((d->>'carbsPerUnit')::numeric, 0),
+--   coalesce((d->>'fatPerUnit')::numeric, 0)
+-- FROM public.meals m, jsonb_array_elements(m.dishes) d
+-- WHERE m.dishes IS NOT NULL
+--   AND jsonb_array_length(m.dishes) > 0
+--   AND m.user_id IS NOT NULL
+-- ORDER BY m.user_id, lower(d->>'food'), d->>'quantityType', m.created_at;
+
+-- 2. Popola meal_items collegando i dishes ai foods appena creati
+-- INSERT INTO public.meal_items
+--   (meal_id, food_id, quantity, quantity_type, grams, calories, protein, carbs, fat, position)
+-- SELECT
+--   m.id,
+--   f.id,
+--   coalesce((d->>'quantity')::numeric, 0),
+--   coalesce(nullif(d->>'quantityType',''), 'grams'),
+--   coalesce((d->>'grams')::numeric, 0),
+--   coalesce((d->>'calories')::numeric, 0),
+--   coalesce((d->>'protein')::numeric, 0),
+--   coalesce((d->>'carbs')::numeric, 0),
+--   coalesce((d->>'fat')::numeric, 0),
+--   (row_number() OVER (PARTITION BY m.id))::integer
+-- FROM public.meals m,
+--      jsonb_array_elements(m.dishes) WITH ORDINALITY AS t(d, pos)
+-- JOIN public.foods f
+--   ON f.user_id = m.user_id
+--  AND f.name = lower(d->>'food')
+--  AND f.default_quantity_type = coalesce(nullif(d->>'quantityType',''), 'grams')
+-- WHERE m.dishes IS NOT NULL
+--   AND jsonb_array_length(m.dishes) > 0
+--   AND m.user_id IS NOT NULL;
+
+-- 3. Verifica prima di rimuovere la colonna dishes
+-- SELECT count(*) FROM public.meal_items;   -- deve corrispondere al totale piatti
+-- SELECT count(*) FROM public.foods;
+
+-- 4. Rimuovi la colonna dishes da meals (solo dopo verifica)
+-- ALTER TABLE public.meals DROP COLUMN dishes;

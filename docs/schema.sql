@@ -1,17 +1,23 @@
 -- ============================================================
--- CaloriesCalculator — Schema Supabase (stato target post-migrazione)
+-- CaloriesCalculator — Schema Supabase (stato attuale)
 -- Progetto: bfoslaydcsffzruubwrx.supabase.co
--- Aggiornato: 2026-06-11
+-- Aggiornato: 2026-10-27 (dopo migrations/2026-10-27_redesign.sql)
 --
--- NOTA: auth.users è gestito interamente da Supabase Auth e
--- non va ricreato manualmente. Tutte le tabelle pubbliche
--- referenziano auth.users(id) tramite foreign key.
+-- Fonte di verità della struttura del DB: quando cambi tabelle, colonne,
+-- policy o funzioni, aggiorna questo file e aggiungi una migrazione in
+-- docs/migrations/ nello stesso intervento.
+--
+-- auth.users è gestito da Supabase Auth e non va ricreato. Tutte le
+-- tabelle pubbliche referenziano auth.users(id).
 -- ============================================================
 
 
 -- ============================================================
 -- TABELLA: profiles
 -- Creata automaticamente al signup tramite trigger.
+-- gemini_api_key NON è leggibile dal browser (column privileges):
+-- il frontend usa has_gemini_api_key(), la Netlify Function la legge
+-- con la secret key.
 -- ============================================================
 create table public.profiles (
   id uuid not null references auth.users(id) on delete cascade,
@@ -23,6 +29,9 @@ create table public.profiles (
 
 alter table public.profiles enable row level security;
 
+revoke select on public.profiles from anon, authenticated;
+grant select (id, display_name, created_at) on public.profiles to authenticated;
+
 create policy "Utenti vedono solo il proprio profilo"
   on public.profiles for select
   using (auth.uid() = id);
@@ -33,7 +42,8 @@ create policy "Utenti creano il proprio profilo"
 
 create policy "Utenti aggiornano il proprio profilo"
   on public.profiles for update
-  using (auth.uid() = id);
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
 
 
 -- ============================================================
@@ -54,6 +64,29 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+
+-- ============================================================
+-- FUNZIONE: has_gemini_api_key()
+-- Dice al frontend se l'utente ha una chiave, senza esporla.
+-- ============================================================
+create or replace function public.has_gemini_api_key()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select length(trim(coalesce(gemini_api_key, ''))) > 0
+       from public.profiles
+      where id = auth.uid()),
+    false
+  );
+$$;
+
+revoke execute on function public.has_gemini_api_key() from public, anon;
+grant execute on function public.has_gemini_api_key() to authenticated;
 
 
 -- ============================================================
@@ -84,7 +117,8 @@ create policy "Utenti creano i propri obiettivi"
 
 create policy "Utenti aggiornano i propri obiettivi"
   on public.goals for update
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create policy "Utenti eliminano i propri obiettivi"
   on public.goals for delete
@@ -93,13 +127,12 @@ create policy "Utenti eliminano i propri obiettivi"
 
 -- ============================================================
 -- TABELLA: meals
--- Ogni pasto appartiene a un utente tramite user_id.
--- I piatti non sono più in un array JSONB ma in meal_items.
+-- Un pasto (categoria + data) di un utente. I piatti sono in meal_items.
 -- ============================================================
 create table public.meals (
   id uuid not null default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  category text null,
+  category text null,          -- 'Colazione' | 'Pranzo' | 'Cena' | 'Spuntino'
   date date null,
   created_at timestamp with time zone null default now(),
   constraint meals_pkey primary key (id)
@@ -117,7 +150,8 @@ create policy "Utenti inseriscono i propri pasti"
 
 create policy "Utenti aggiornano i propri pasti"
   on public.meals for update
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create policy "Utenti eliminano i propri pasti"
   on public.meals for delete
@@ -129,6 +163,7 @@ create policy "Utenti eliminano i propri pasti"
 -- Libreria cibi per utente: valori nutrizionali per unità.
 -- Una riga per combinazione (user_id, name, default_quantity_type).
 -- I nomi sono normalizzati in minuscolo.
+-- "Unità" = 1 grammo per i cibi in grammi, 1 pezzo/cucchiaino/cucchiaio per gli altri.
 -- ============================================================
 create table public.foods (
   id uuid not null default gen_random_uuid(),
@@ -139,6 +174,7 @@ create table public.foods (
   protein_per_unit  numeric(10,4) not null default 0,
   carbs_per_unit    numeric(10,4) not null default 0,
   fat_per_unit      numeric(10,4) not null default 0,
+  grams_per_unit    numeric(10,3),   -- peso di 1 unità; 1 per i cibi in grammi
   created_at timestamp with time zone not null default now(),
   constraint foods_pkey primary key (id),
   constraint foods_user_name_type_key unique (user_id, name, default_quantity_type)
@@ -156,7 +192,8 @@ create policy "Utenti inseriscono i propri cibi"
 
 create policy "Utenti aggiornano i propri cibi"
   on public.foods for update
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create policy "Utenti eliminano i propri cibi"
   on public.foods for delete
@@ -165,9 +202,9 @@ create policy "Utenti eliminano i propri cibi"
 
 -- ============================================================
 -- TABELLA: meal_items
--- Tabella di giunzione tra meals e foods.
--- Ogni riga rappresenta un piatto specifico in un pasto,
--- con la quantità e i macro calcolati per quella porzione.
+-- Un piatto in un pasto, con la quantità e i macro calcolati per quella
+-- porzione (salvati, non ricalcolati a runtime).
+-- food_id on delete restrict: un cibo usato in qualche piatto non si elimina.
 -- ============================================================
 create table public.meal_items (
   id uuid not null default gen_random_uuid(),
@@ -190,38 +227,68 @@ alter table public.meal_items enable row level security;
 create policy "Utenti vedono i propri meal_items"
   on public.meal_items for select
   using (
-    exists (
-      select 1 from public.meals m
-      where m.id = meal_id and m.user_id = auth.uid()
-    )
+    exists (select 1 from public.meals m where m.id = meal_id and m.user_id = auth.uid())
   );
 
 create policy "Utenti inseriscono i propri meal_items"
   on public.meal_items for insert
   with check (
-    exists (
-      select 1 from public.meals m
-      where m.id = meal_id and m.user_id = auth.uid()
-    )
+    exists (select 1 from public.meals m where m.id = meal_id and m.user_id = auth.uid())
+    and exists (select 1 from public.foods f where f.id = food_id and f.user_id = auth.uid())
   );
 
 create policy "Utenti aggiornano i propri meal_items"
   on public.meal_items for update
   using (
-    exists (
-      select 1 from public.meals m
-      where m.id = meal_id and m.user_id = auth.uid()
-    )
+    exists (select 1 from public.meals m where m.id = meal_id and m.user_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.meals m where m.id = meal_id and m.user_id = auth.uid())
+    and exists (select 1 from public.foods f where f.id = food_id and f.user_id = auth.uid())
   );
 
 create policy "Utenti eliminano i propri meal_items"
   on public.meal_items for delete
   using (
-    exists (
-      select 1 from public.meals m
-      where m.id = meal_id and m.user_id = auth.uid()
-    )
+    exists (select 1 from public.meals m where m.id = meal_id and m.user_id = auth.uid())
   );
+
+
+-- ============================================================
+-- FUNZIONE: recalculate_food_items(food_id)
+-- Ricalcola grammi e macro dei piatti di un cibo dopo una correzione.
+-- security invoker: l'RLS resta attiva. Restituisce i piatti aggiornati.
+-- ============================================================
+create or replace function public.recalculate_food_items(p_food_id uuid)
+returns integer
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  updated_count integer;
+begin
+  update public.meal_items mi
+     set grams = case
+                   when f.default_quantity_type = 'grams' then mi.quantity
+                   else coalesce(round(mi.quantity * f.grams_per_unit, 2), mi.grams)
+                 end,
+         calories = round(mi.quantity * f.calories_per_unit, 0),
+         protein  = round(mi.quantity * f.protein_per_unit, 1),
+         carbs    = round(mi.quantity * f.carbs_per_unit, 1),
+         fat      = round(mi.quantity * f.fat_per_unit, 1)
+    from public.foods f
+   where f.id = p_food_id
+     and f.user_id = auth.uid()
+     and mi.food_id = f.id;
+
+  get diagnostics updated_count = row_count;
+  return updated_count;
+end;
+$$;
+
+revoke execute on function public.recalculate_food_items(uuid) from public, anon;
+grant execute on function public.recalculate_food_items(uuid) to authenticated;
 
 
 -- ============================================================
@@ -229,68 +296,5 @@ create policy "Utenti eliminano i propri meal_items"
 -- ============================================================
 create index meals_user_date_idx on public.meals(user_id, date);
 create index meal_items_meal_id_idx on public.meal_items(meal_id);
+create index meal_items_food_id_idx on public.meal_items(food_id);
 create index foods_user_id_idx on public.foods(user_id);
-
-
--- ============================================================
--- MIGRAZIONE DATI ESISTENTI
--- Da eseguire in Supabase SQL Editor NELL'ORDINE indicato.
--- Prerequisito: i pasti devono avere user_id assegnato
--- (vedere query di assegnazione manuale sotto).
--- ============================================================
-
--- 0. Assegnare user_id ai pasti esistenti (se ancora null).
---    Sostituire <tuo-uuid> con l'UUID del proprio utente
---    (da Supabase Dashboard → Authentication → Users).
--- update public.meals
---   set user_id = '<tuo-uuid>'
---   where user_id is null;
-
--- 1. Popola foods dai dishes JSONB esistenti
---    (distinto per utente + nome + tipo; prende il primo valore trovato)
--- INSERT INTO public.foods (user_id, name, default_quantity_type,
---   calories_per_unit, protein_per_unit, carbs_per_unit, fat_per_unit)
--- SELECT DISTINCT ON (m.user_id, lower(d->>'food'), d->>'quantityType')
---   m.user_id,
---   lower(d->>'food'),
---   coalesce(nullif(d->>'quantityType',''), 'grams'),
---   coalesce((d->>'caloriesPerUnit')::numeric, 0),
---   coalesce((d->>'proteinPerUnit')::numeric, 0),
---   coalesce((d->>'carbsPerUnit')::numeric, 0),
---   coalesce((d->>'fatPerUnit')::numeric, 0)
--- FROM public.meals m, jsonb_array_elements(m.dishes) d
--- WHERE m.dishes IS NOT NULL
---   AND jsonb_array_length(m.dishes) > 0
---   AND m.user_id IS NOT NULL
--- ORDER BY m.user_id, lower(d->>'food'), d->>'quantityType', m.created_at;
-
--- 2. Popola meal_items collegando i dishes ai foods appena creati
--- INSERT INTO public.meal_items
---   (meal_id, food_id, quantity, quantity_type, grams, calories, protein, carbs, fat, position)
--- SELECT
---   m.id,
---   f.id,
---   coalesce((d->>'quantity')::numeric, 0),
---   coalesce(nullif(d->>'quantityType',''), 'grams'),
---   coalesce((d->>'grams')::numeric, 0),
---   coalesce((d->>'calories')::numeric, 0),
---   coalesce((d->>'protein')::numeric, 0),
---   coalesce((d->>'carbs')::numeric, 0),
---   coalesce((d->>'fat')::numeric, 0),
---   (row_number() OVER (PARTITION BY m.id))::integer
--- FROM public.meals m,
---      jsonb_array_elements(m.dishes) WITH ORDINALITY AS t(d, pos)
--- JOIN public.foods f
---   ON f.user_id = m.user_id
---  AND f.name = lower(d->>'food')
---  AND f.default_quantity_type = coalesce(nullif(d->>'quantityType',''), 'grams')
--- WHERE m.dishes IS NOT NULL
---   AND jsonb_array_length(m.dishes) > 0
---   AND m.user_id IS NOT NULL;
-
--- 3. Verifica prima di rimuovere la colonna dishes
--- SELECT count(*) FROM public.meal_items;   -- deve corrispondere al totale piatti
--- SELECT count(*) FROM public.foods;
-
--- 4. Rimuovi la colonna dishes da meals (solo dopo verifica)
--- ALTER TABLE public.meals DROP COLUMN dishes;

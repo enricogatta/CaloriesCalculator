@@ -1,15 +1,32 @@
+# Unico file di configurazione Netlify, usato sia in produzione sia da `netlify dev`
+# (da lanciare dalla root del repository). Tutti i percorsi sono relativi a `base`.
 [build]
-  command = "cd frontend && npm install && npm run build"
-  publish = "frontend/dist"
+  base = "app"
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
 
 [build.environment]
+  # URL pubblica, finisce nel bundle di proposito: non è un segreto
   SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL"
 
 [functions]
-  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
-# Mappa /api/* alle Netlify Functions, così il frontend non cambia le sue URL
+# netlify dev esegue il comando dalla root del repo, non da `base`
+[dev]
+  command = "npm run dev --prefix app"
+  framework = "vite"
+  targetPort = 5173
+  port = 8888
+
+# L'ordine conta: /api/* deve precedere il fallback della SPA
 [[redirects]]
-  from   = "/api/*"
-  to     = "/.netlify/functions/:splat"
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
   status = 200
