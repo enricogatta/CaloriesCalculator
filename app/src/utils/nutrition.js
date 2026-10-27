@@ -86,6 +86,43 @@ export function findFood(foods, name, quantityType) {
   return foods.find(f => f.name === normalized && f.default_quantity_type === quantityType) || null
 }
 
+// Per la ricerca: senza accenti ("caffe" trova "caffè") e diviso in parole
+const foldForSearch = (text) => normalizeFoodName(text).normalize('NFD').replace(/[̀-ͯ]/g, '')
+const searchWords = (text) => text.split(/[^a-z0-9]+/).filter(Boolean)
+
+/**
+ * Cibi che corrispondono al testo cercato, dal più pertinente: nome identico,
+ * nome che inizia col testo, ogni parola cercata all'inizio di una parola del
+ * nome ("pasta tonno" → "pasta al tonno"), ogni parola contenuta nel nome.
+ * A parità prima i nomi più corti, poi in ordine alfabetico.
+ * @param {Array} foods - righe di foods
+ * @param {string} query
+ * @param {number} limit
+ */
+export function searchFoods(foods, query, limit = Infinity) {
+  const q = foldForSearch(query)
+  const tokens = searchWords(q)
+  if (tokens.length === 0) return []
+
+  const ranked = []
+  for (const food of foods) {
+    const name = foldForSearch(food.name)
+    const words = searchWords(name)
+    let score
+    if (name === q) score = 0
+    else if (name.startsWith(q)) score = 1
+    else if (tokens.every(t => words.some(w => w.startsWith(t)))) score = 2
+    else if (tokens.every(t => name.includes(t))) score = 3
+    else continue
+    ranked.push({ food, score, length: name.length })
+  }
+
+  return ranked
+    .sort((a, b) => a.score - b.score || a.length - b.length || a.food.name.localeCompare(b.food.name, 'it'))
+    .slice(0, limit)
+    .map(r => r.food)
+}
+
 /**
  * Grammi e macro di una porzione, dai valori per unità del cibo.
  * Arrotondamenti uguali a recalculate_food_items() nel DB.

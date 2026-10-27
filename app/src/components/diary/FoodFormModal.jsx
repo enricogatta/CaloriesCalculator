@@ -54,7 +54,6 @@ export function FoodFormModal({ mode, initial, lockCategory, foods, onClose, onS
   const [errors, setErrors] = useState({})
   const [submitError, setSubmitError] = useState(null)
   const [saving, setSaving] = useState(false)
-  const foodInputRef = useRef(null)
   const quantityInputRef = useRef(null)
   const formId = useId()
   const categoryLabelId = useId()
@@ -87,7 +86,6 @@ export function FoodFormModal({ mode, initial, lockCategory, foods, onClose, onS
       title={title}
       description={description}
       dismissible={!saving}
-      initialFocusRef={mode === 'add' ? foodInputRef : undefined}
       footer={
         <div className="flex gap-3">
           <Button variant="secondary" onClick={onClose} disabled={saving} className="flex-1">
@@ -116,7 +114,6 @@ export function FoodFormModal({ mode, initial, lockCategory, foods, onClose, onS
           {(field) => (
             <FoodAutocomplete
               fieldProps={field}
-              inputRef={foodInputRef}
               value={foodName}
               onValueChange={(text) => { setFoodName(text); setSubmitError(null) }}
               onSelect={(food) => {
@@ -124,6 +121,7 @@ export function FoodFormModal({ mode, initial, lockCategory, foods, onClose, onS
                 setQuantityType(food.default_quantity_type)
                 quantityInputRef.current?.focus()
               }}
+              onEnter={() => quantityInputRef.current?.focus()}
               foods={foods}
               error={errors.food}
               placeholder="Es. petto di pollo"

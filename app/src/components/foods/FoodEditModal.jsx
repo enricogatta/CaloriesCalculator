@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import { Sparkles, Trash2, TriangleAlert } from 'lucide-react'
 import { BaseModal } from '../modals/BaseModal'
 import { Button } from '../ui/Button'
@@ -80,7 +80,6 @@ export function FoodEditModal({ food, onClose, onSubmit, onDelete, onEstimate })
   const [saving, setSaving] = useState(false)
   const [estimating, setEstimating] = useState(false)
   const [estimated, setEstimated] = useState(false)
-  const nameRef = useRef(null)
   const formId = useId()
 
   const isEdit = Boolean(food)
@@ -154,7 +153,6 @@ export function FoodEditModal({ food, onClose, onSubmit, onDelete, onEstimate })
       title={isEdit ? 'Modifica alimento' : 'Nuovo alimento'}
       description={isEdit ? 'Correggi nome o valori se quelli calcolati non ti convincono.' : 'Usa i valori dell\'etichetta.'}
       dismissible={!saving}
-      initialFocusRef={isEdit ? undefined : nameRef}
       footer={
         <div className="flex flex-col gap-3">
           <div className="flex gap-3">
@@ -174,7 +172,6 @@ export function FoodEditModal({ food, onClose, onSubmit, onDelete, onEstimate })
           {(field) => (
             <input
               {...field}
-              ref={nameRef}
               type="text"
               autoComplete="off"
               placeholder="Es. yogurt greco"

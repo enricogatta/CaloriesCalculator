@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { UNIT_LABELS } from '../../utils/nutrition'
+import { UNIT_LABELS, searchFoods } from '../../utils/nutrition'
 import { inputClass } from '../ui/fieldStyles'
 
 const MAX_RESULTS = 6
-
-const filterFoods = (foods, text) => {
-  const query = text.trim().toLowerCase()
-  if (!query) return []
-  return foods.filter(food => food.name.includes(query)).slice(0, MAX_RESULTS)
-}
 
 /**
  * FoodAutocomplete component
@@ -23,15 +17,18 @@ const filterFoods = (foods, text) => {
  * - Tap e scroll nel menu sono distinti a mano su touch.
  * - Il menu si apre solo dopo che l'utente ha scritto: un valore precompilato
  *   (modifica piatto) non lo apre.
+ * - Suggerimenti ordinati per pertinenza (searchFoods), il primo già evidenziato:
+ *   Invio lo sceglie. Freccia su fino a nessuna voce, o Esc, per tenere il testo scritto.
+ *   Invio non invia mai il form: senza voce scelta chiama onEnter.
  * @param {string} value
  * @param {Function} onValueChange - (text) => void
  * @param {Function} onSelect - (food) => void, food è una riga di foods
+ * @param {Function} onEnter - () => void, Invio senza scegliere un suggerimento (es. passa alla quantità)
  * @param {Array} foods - Libreria cibi
  * @param {object} fieldProps - id e aria-* da FormField
  * @param {string} error - Stato d'errore del bordo
- * @param {object} inputRef
  */
-export function FoodAutocomplete({ value, onValueChange, onSelect, foods, fieldProps, error, inputRef, placeholder }) {
+export function FoodAutocomplete({ value, onValueChange, onSelect, onEnter, foods, fieldProps, error, placeholder }) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [pressedIndex, setPressedIndex] = useState(-1)
@@ -43,7 +40,7 @@ export function FoodAutocomplete({ value, onValueChange, onSelect, foods, fieldP
   const touchRef = useRef({ y: 0, moved: false })
   const listboxId = useId()
 
-  const results = filterFoods(foods, value)
+  const results = searchFoods(foods, value, MAX_RESULTS)
   const isOpen = open && results.length > 0
 
   // Posizione calcolata dal campo e scritta direttamente sul menu: funziona anche
@@ -103,8 +100,8 @@ export function FoodAutocomplete({ value, onValueChange, onSelect, foods, fieldP
     userTypedRef.current = true
     const text = event.target.value
     onValueChange(text)
-    setActiveIndex(-1)
-    setOpen(filterFoods(foods, text).length > 0)
+    setActiveIndex(0)
+    setOpen(searchFoods(foods, text, MAX_RESULTS).length > 0)
   }
 
   const handleSelect = (food) => {
@@ -116,6 +113,24 @@ export function FoodAutocomplete({ value, onValueChange, onSelect, foods, fieldP
   }
 
   const handleKeyDown = (event) => {
+    // Invio che conferma una parola composta (tastiere asiatiche, dettatura) non è un comando
+    if (event.nativeEvent.isComposing) return
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const choice = isOpen ? results[activeIndex] : null
+      if (choice) {
+        handleSelect(choice)
+      } else {
+        setOpen(false)
+        onEnter?.()
+      }
+      return
+    }
+    // Il Tab porta al campo dopo: il menu non deve restargli sopra
+    if (event.key === 'Tab') {
+      setOpen(false)
+      return
+    }
     if (!isOpen) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
@@ -123,9 +138,6 @@ export function FoodAutocomplete({ value, onValueChange, onSelect, foods, fieldP
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
       setActiveIndex(i => Math.max(i - 1, -1))
-    } else if (event.key === 'Enter' && activeIndex >= 0) {
-      event.preventDefault()
-      handleSelect(results[activeIndex])
     } else if (event.key === 'Escape') {
       // Chiude il menu senza chiudere il modale che lo contiene
       event.stopPropagation()
@@ -141,7 +153,6 @@ export function FoodAutocomplete({ value, onValueChange, onSelect, foods, fieldP
       <div ref={containerRef}>
         <input
           {...fieldProps}
-          ref={inputRef}
           className={inputClass(error)}
           type="text"
           role="combobox"

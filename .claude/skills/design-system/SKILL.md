@@ -95,7 +95,7 @@ Tailwind con `@theme inline`.
 |---|---|
 | `--radius-md` / `-lg` / `-xl` | `0.75rem` / `1.25rem` / `1.75rem` (input / card / modali) |
 | `--font-sans` | stack di sistema (`-apple-system`, SF Pro Text, Segoe UI, Roboto…) |
-| Animazioni | `animate-sheet-in` (260ms), `animate-fade-in` (200ms), `animate-pop-in` (200ms) |
+| Animazioni | `animate-sheet-in` (260ms), `animate-fade-in` (200ms) |
 | Utility custom | `glass`, `pt-safe`, `pb-safe-6`, `pb-tabbar`, `bottom-tabbar`, `max-h-sheet`, `min-h-screen-dvh`, `h-page` (altezza fra header e tab bar, per liste che scorrono al proprio interno) |
 
 Contrasti verificati annotati in testa a `index.css`. Palette dei macro validata con la skill
@@ -122,7 +122,7 @@ della tab bar `text-xs`. Pesi: normal, semibold, bold (solo titolo di pagina).
 | `PageTitle` | `components/layout/PageTitle.jsx` | Intestazione di pagina: sopratitolo, titolo con parte in accento, descrizione | `eyebrow`, `title`, `accent`, `description` | 5 |
 | `IconButton` | `components/ui/IconButton.jsx` | Bottone tondo 44px con sola icona; `label` → aria-label | `variant`: glass, plain, danger · `to` per renderlo Link | 4 |
 | `EmptyState` | `components/ui/EmptyState.jsx` | Lista vuota o errore di caricamento con azione | `icon`, `title`, `description`, `action`, `tone`: default, danger | 4 |
-| `BaseModal` | `components/modals/BaseModal.jsx` | Guscio di ogni modale: foglio dal basso su mobile, centrato da `sm`, portal, focus trap, Esc, scroll lock, stack di modali | `isOpen`, `onClose`, `title`, `description`, `footer`, `initialFocusRef`, `dismissible` | 4 |
+| `BaseModal` | `components/modals/BaseModal.jsx` | Guscio di ogni modale: foglio dal basso su ogni schermo (max `sm:max-w-md`), portal, focus trap, Esc, scroll lock, stack di modali. Senza `initialFocusRef` il focus va al pannello: mai su un campo di testo (aprirebbe la tastiera) | `isOpen`, `onClose`, `title`, `description`, `footer`, `initialFocusRef`, `dismissible` | 4 |
 | `Skeleton` | `components/ui/Skeleton.jsx` | Segnaposto di caricamento con la forma del contenuto | `className` | 3 |
 | `SegmentedControl` | `components/ui/SegmentedControl.jsx` | Scelta fra 2–3 opzioni brevi, capsula che scorre, frecce da tastiera | `options`, `value`, `onChange`, `label` | 3 |
 | `Select` | `components/ui/Select.jsx` | Select nativa con freccia del tema | `error` + props di `<select>` | 2 |
@@ -133,7 +133,7 @@ della tab bar `text-xs`. Pesi: normal, semibold, bold (solo titolo di pagina).
 | `AppShell` | `components/layout/AppShell.jsx` | Header traslucido + `Outlet` + TabBar; gate su `useData().status` | — | 1 |
 | `TabBar` | `components/layout/TabBar.jsx` | Tab bar flottante `glass` con 4 sezioni | — | 1 |
 | `SplashScreen` | `components/layout/SplashScreen.jsx` | Schermata durante la verifica della sessione | — | 1 |
-| `FoodAutocomplete` | `components/diary/FoodAutocomplete.jsx` | Campo alimento con suggerimenti dalla libreria; menu in portal con logica iOS (visualViewport, tap vs scroll) | `value`, `onValueChange`, `onSelect`, `foods`, `fieldProps`, `error`, `inputRef` | 1 |
+| `FoodAutocomplete` | `components/diary/FoodAutocomplete.jsx` | Campo alimento con suggerimenti dalla libreria per pertinenza (`searchFoods`), il primo evidenziato; Invio sceglie e non invia il form, Tab chiude il menu; menu in portal con logica iOS (visualViewport, tap vs scroll) | `value`, `onValueChange`, `onSelect`, `onEnter`, `foods`, `fieldProps`, `error` | 1 |
 | `FoodFormModal` | `components/diary/FoodFormModal.jsx` | Aggiunta/modifica di un piatto con anteprima valori | `mode`, `initial`, `lockCategory`, `foods`, `onSubmit` | 1 |
 | `WeekStrip` | `components/diary/WeekStrip.jsx` | Settimana con pallini sui giorni registrati + date picker nativo | `selectedDate`, `onChange`, `loggedDates` | 1 |
 | `DailySummary` | `components/diary/DailySummary.jsx` | Totali del giorno contro obiettivi | `totals`, `goals` | 1 |
@@ -170,7 +170,7 @@ quando l'app torna in primo piano dopo 60s) · `DialogContext.jsx` (monta un Con
 | goals | `services/goalsService.js` | `getGoals`, `saveGoals` (upsert su `user_id`) |
 | profile | `services/profileService.js` | `hasAiApiKey` (RPC), `saveAiApiKey`, `removeAiApiKey` (chiave Groq) |
 | dates | `utils/dates.js` | Date locali `'YYYY-MM-DD'`: `toDateStr`, `parseDateStr`, `todayStr`, `addDays`, `startOfWeek`, `dateRange`, formatter italiani |
-| nutrition | `utils/nutrition.js` | Costanti (`MEAL_CATEGORIES`, `QUANTITY_TYPES`, `UNIT_LABELS`, `PER_LABELS`, `MACROS`, `DEFAULT_GOALS`) e calcoli (`findFood`, `portionFromFood`, `perUnitFromAnalysis`, `sumMacros`, `formatNumber`, `formatInteger`) |
+| nutrition | `utils/nutrition.js` | Costanti (`MEAL_CATEGORIES`, `QUANTITY_TYPES`, `UNIT_LABELS`, `PER_LABELS`, `MACROS`, `DEFAULT_GOALS`) e calcoli (`findFood`, `searchFoods` (ricerca per pertinenza, senza accenti), `portionFromFood`, `perUnitFromAnalysis`, `sumMacros`, `formatNumber`, `formatInteger`) |
 | scrollLock | `utils/scrollLock.js` | Blocco scroll compatibile iOS con contatore per modali annidati |
 | storage | `utils/storage.js` | `readStorage` / `writeStorage` con try/catch |
 

@@ -18,7 +18,7 @@ import {
   recalculateFoodItems,
   updateFood,
 } from '../services/foodsService'
-import { UNIT_LABELS, normalizeFoodName } from '../utils/nutrition'
+import { UNIT_LABELS, normalizeFoodName, searchFoods } from '../utils/nutrition'
 
 const VALUE_KEYS = ['calories_per_unit', 'protein_per_unit', 'carbs_per_unit', 'fat_per_unit', 'grams_per_unit']
 const NETWORK_MESSAGE = 'Salvataggio non riuscito. Controlla la connessione e riprova.'
@@ -41,8 +41,8 @@ export function AlimentiPage() {
   // null = modale chiuso; { food: null } = nuovo; { food } = modifica
   const [editing, setEditing] = useState(null)
 
-  const normalizedQuery = normalizeFoodName(query)
-  const visibleFoods = normalizedQuery ? foods.filter(f => f.name.includes(normalizedQuery)) : foods
+  // Con una ricerca, dal più pertinente; senza, in ordine alfabetico
+  const visibleFoods = query.trim() ? searchFoods(foods, query) : foods
 
   const handleCreate = async (fields) => {
     const name = normalizeFoodName(fields.name)
