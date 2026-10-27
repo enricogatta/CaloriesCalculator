@@ -1,7 +1,8 @@
-# Dipendenze e build
+# Dipendenze, build e cache di Vite
 node_modules
 dist
 dist-ssr
+.vite
 
 # Variabili d'ambiente (contengono segreti)
 .env
