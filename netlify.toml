@@ -30,3 +30,20 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Header di sicurezza. La Content-Security-Policy è un <meta> aggiunto in build
+# da vite.config.js (qui romperebbe l'hot reload di netlify dev).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+
+# File con hash nel nome: non cambiano mai, cache permanente
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

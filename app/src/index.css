@@ -1,77 +1,258 @@
 @import "tailwindcss";
 
+/* Tema scuro via classe .dark su <html> (impostata da public/theme-init.js e ThemeProvider) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ===========================================================
+   Token — palette di sistema iOS. Ogni token light ha il suo dark.
+   Contrasti verificati (WCAG):
+   - content-muted su surface-raised: 5.2:1 light, 5.9:1 dark
+   - content-subtle: 3.3:1 light → solo testo ≥ 18px o non essenziale
+   - accent-fg (bianco) su accent: 4.7:1 in entrambi i temi
+   - accent-text su surface-raised: 5.6:1 light, 5.8:1 dark
+   - danger su surface-raised: 5.4:1 light, 5.0:1 dark
+   =========================================================== */
 :root {
+  color-scheme: light;
+
+  /* Superfici, dal fondo verso l'alto */
+  --surface: #f2f2f7;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e9e9ee;
+
+  /* Testo */
+  --text: #000000;
+  --text-muted: #6c6c70;
+  --text-subtle: #8e8e93;
+
+  /* Bordi e separatori */
+  --border: #e5e5ea;
+  --border-strong: #d1d1d6;
+
+  /* Accento: riempimento dei bottoni primari + testo/icone attive */
+  --accent: #0071e3;
+  --accent-hover: #0062c4;
+  --accent-fg: #ffffff;
+  --accent-text: #0066cc;
+
+  /* Semantici: solo per il loro significato */
+  --danger: #d70015;
+  --danger-fill: #d70015;
+  --warning: #b25000;
+  --success: #1e7b34;
+
+  /* Macro: palette categoriale validata con la skill dataviz (CVD e normale, all-pairs).
+     Le kcal non hanno colore: sono il dato principale e usano l'inchiostro del testo. */
+  --macro-protein: #6250d6;
+  --macro-carbs: #eb6834;
+  --macro-fat: #1baf7a;
+
+  /* Vetro: solo elementi flottanti (header, tab bar, bottoni tondi) */
+  --glass-bg: rgb(255 255 255 / 0.64);
+  --glass-border: rgb(255 255 255 / 0.75);
+  --glass-highlight: rgb(255 255 255 / 0.9);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.12);
+  --glass-active: rgb(0 0 0 / 0.07);
+  --scrim: rgb(0 0 0 / 0.32);
+
+  /* Altezza della tab bar flottante: il contenuto lascia spazio sotto */
+  --tabbar-height: 4rem;
+}
+
+.dark {
   color-scheme: dark;
+
+  --surface: #000000;
+  --surface-raised: #1c1c1e;
+  --surface-sunken: #2c2c2e;
+
+  --text: #ffffff;
+  --text-muted: #98989f;
+  --text-subtle: #8e8e93;
+
+  --border: #38383a;
+  --border-strong: #48484a;
+
+  --accent: #0071e3;
+  --accent-hover: #0062c4;
+  --accent-fg: #ffffff;
+  --accent-text: #409cff;
+
+  --danger: #ff453a;
+  --danger-fill: #d70015;
+  --warning: #ff9f0a;
+  --success: #30d158;
+
+  --macro-protein: #9085e9;
+  --macro-carbs: #d95926;
+  --macro-fat: #199e70;
+
+  --glass-bg: rgb(36 36 38 / 0.62);
+  --glass-border: rgb(255 255 255 / 0.1);
+  --glass-highlight: rgb(255 255 255 / 0.14);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
+  --glass-active: rgb(0 0 0 / 0.5);
+  --scrim: rgb(0 0 0 / 0.55);
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-content: var(--text);
+  --color-content-muted: var(--text-muted);
+  --color-content-subtle: var(--text-subtle);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
+  --color-danger: var(--danger);
+  --color-danger-fill: var(--danger-fill);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-macro-protein: var(--macro-protein);
+  --color-macro-carbs: var(--macro-carbs);
+  --color-macro-fat: var(--macro-fat);
+  --color-scrim: var(--scrim);
+  --color-glass-active: var(--glass-active);
+
+  /* Radius differenziato per dimensione: input 12px, card 20px, modali 28px.
+     rounded-full solo per bottoni a capsula, bottoni tondi, badge */
+  --radius-md: 0.75rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+
+  --animate-sheet-in: sheet-in 260ms ease-out;
+  --animate-fade-in: fade-in 200ms ease-out;
+  --animate-pop-in: pop-in 200ms ease-out;
 }
 
-body {
-  background-color: #09090b;
-  color: #fafafa;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
-/* Font-size >= 16px sugli input: impedisce a iOS Safari lo zoom automatico al focus */
-input,
-select,
-textarea {
-  font-size: 16px;
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* Scrollbar discrete (desktop) */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+/* Liquid glass. Le due ombre (riflesso interno + elevazione) sono l'unica eccezione
+   voluta alla regola "una sola ombra per elemento". */
+@utility glass {
+  background-color: var(--glass-bg);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--glass-shadow);
 }
 
-::-webkit-scrollbar-thumb {
-  background: #4c1d95;
-  border-radius: 8px;
+/* Senza backdrop-filter, o se l'utente chiede meno trasparenza: superficie piena */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass { background-color: var(--surface-raised); }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #6d28d9;
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background-color: var(--surface-raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
-/* Nasconde la scrollbar mantenendo lo scroll (usata dalla barra date) */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* ===========================================================
+   Safe area e spazi della UI fissa (notch, Dynamic Island, home indicator).
+   env() vale 0 sui dispositivi senza notch.
+   =========================================================== */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+/* Fondo dei fogli modali: spazio interno + home indicator */
+@utility pb-safe-6 {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
 }
 
-/* Rimuove le freccette dagli input numerici per un look pulito */
-input[type='number']::-webkit-outer-spin-button,
-input[type='number']::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+/* Il contenuto lascia libera la zona della tab bar flottante */
+@utility pb-tabbar {
+  padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 2rem);
 }
 
-input[type='number'] {
-  -moz-appearance: textfield;
-  appearance: textfield;
+@utility bottom-tabbar {
+  bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
 }
 
-/* Input date coerente col tema scuro su tutti i browser */
-input[type='date'] {
-  -webkit-appearance: none;
-  appearance: none;
+@utility max-h-sheet {
+  max-height: 90vh;
+  max-height: 90dvh;
 }
 
-input[type='date']::-webkit-calendar-picker-indicator {
-  filter: invert(0.55);
-  cursor: pointer;
+@utility min-h-screen-dvh {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ===========================================================
+   Base
+   =========================================================== */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background-color: var(--surface);
+    color: var(--text);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Nessun input sotto i 16px: iOS zoomerebbe al focus */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
+  }
+
+  /* Il feedback al tocco è dato da :active su ogni controllo */
+  button,
+  a,
+  [role='button'],
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Niente freccette sugli input numerici */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

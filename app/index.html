@@ -8,14 +8,22 @@
     <title>Calories Calculator</title>
     <meta name="description" content="Diario alimentare: calorie e macronutrienti calcolati con l'AI." />
 
-    <link rel="icon" type="image/png" href="/icona.png" />
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#09090b" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="light dark" />
 
-    <link rel="apple-touch-icon" href="/icona.png" />
+    <!-- iOS ignora gran parte del manifest: servono i meta Apple -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- black-translucent: il contenuto passa sotto la barra di stato, l'header gestisce la safe area -->
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Calorie" />
+
+    <!-- Tema applicato prima del primo paint (file esterno: la CSP non ammette script inline) -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
